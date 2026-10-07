@@ -1,7 +1,12 @@
 # CI
 
 Die Pipeline in `.github/workflows/ci.yml` läuft bei Pushes auf `main` und bei
-Pull Requests gegen `main`. **Dreizehn Jobs**, alle auf `ubuntu-24.04`.
+Pull Requests gegen `main`. Alle Jobs laufen auf `ubuntu-24.04`.
+
+> **Öffentliche Kopie:** Die Pipeline in diesem Repository ist auf fünf Jobs
+> reduziert (Typecheck, Lint, Test, Coverage, `npm audit`) und braucht keine
+> Secrets. Die folgenden Abschnitte beschreiben auch Jobs der internen
+> Pipeline (SDK, Docker, Release Trockenlauf), die hier nicht laufen.
 
 ## Runner sind gepinnt, nicht `ubuntu-latest`
 
@@ -138,7 +143,7 @@ By 2027-Feb-18, you need to update your project and remove deprecated calls
 ```
 
 Setuptools fordert einen SPDX-String oder `license-files`. Steht in
-`docs/release-pruefung.md` als offener Punkt.
+[interne Notiz, nicht veröffentlicht] als offener Punkt.
 
 ## Abhängigkeiten
 
@@ -308,7 +313,7 @@ eigene Tests.
 
 Der Job **pusht nicht** und braucht **keine Secrets**. Dass das Image mit
 `NODE_ENV=production` und echtem Material startet, ist in
-`docs/release-pruefung.md` Abschnitt 5.1 belegt; das lässt sich nicht in einer
+[interne Notiz, nicht veröffentlicht] Abschnitt 5.1 belegt; das lässt sich nicht in einer
 PR ohne Geheimnisse nachstellen.
 
 Vor `docker build` zieht der Job das Basisimage einmal explizit, damit die im
