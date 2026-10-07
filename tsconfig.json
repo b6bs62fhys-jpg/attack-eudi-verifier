@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
+  },
+  "include": [
+    "src",
+    "tools",
+    "vitest.config.ts",
+    "sdk/typescript/src",
+    "sdk/typescript/test",
+    "sdk/typescript/vitest.config.ts",
+    "examples/verifier-demo/src"
+  ]
+}

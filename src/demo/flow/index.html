@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Attack – Prüfanfrage (Demo)</title>
+    <style>
+      :root { color-scheme: light; }
+      * { box-sizing: border-box; }
+      body {
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        max-width: 46rem;
+        margin: 0 auto;
+        padding: 1.5rem 1rem 4rem;
+        line-height: 1.55;
+        color: #1c2126;
+        background: #f6f7f9;
+      }
+      h1 { font-size: 1.4rem; margin: 0 0 0.25rem; }
+      h2 { font-size: 1.05rem; margin: 0 0 0.5rem; }
+      .muted { color: #5d6672; font-size: 0.9rem; }
+      section { background: #fff; border: 1px solid #dfe3e8; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+
+      /* Banner: muss sofort auffallen, bevor jemand etwas klickt. */
+      .banner { background: #fff4d6; border: 1px solid #e3c766; border-left: 5px solid #c99a06; color: #4a3600; }
+      .banner strong { display: block; margin-bottom: 0.25rem; }
+      .banner ul { margin: 0.35rem 0 0; padding-left: 1.2rem; }
+
+      label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+      select { width: 100%; padding: 0.5rem; font: inherit; border: 1px solid #b9c0c8; border-radius: 6px; background: #fff; }
+      button { font: inherit; font-weight: 600; padding: 0.55rem 1rem; border: 1px solid #1a4f9c; border-radius: 6px; background: #1a4f9c; color: #fff; cursor: pointer; }
+      button:disabled { background: #9fb0c4; border-color: #9fb0c4; cursor: progress; }
+      button.secondary { background: #fff; color: #1a4f9c; }
+
+      .badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; }
+      .badge-accepted, .badge-completed { background: #d6f0d6; color: #0b4d0b; }
+      .badge-rejected, .badge-expired, .badge-failed { background: #fbcfcf; color: #7a1010; }
+      .badge-waiting { background: #ffe9a8; color: #5c4300; }
+
+      dl { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 1rem; margin: 0; }
+      dt { font-weight: 600; }
+      dd { margin: 0; overflow-wrap: anywhere; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85em; background: #eef1f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+
+      ul.checks { list-style: none; margin: 0; padding: 0; }
+      ul.checks li { display: grid; grid-template-columns: 1.5rem 1fr; gap: 0.5rem; padding: 0.4rem 0; border-top: 1px solid #eceff2; }
+      ul.checks li:first-child { border-top: 0; }
+      .mark { font-weight: 700; }
+      .mark-ok { color: #0b6b0b; }
+      .mark-bad { color: #a11212; }
+      .mark-skip { color: #6a727c; }
+      .why { display: block; color: #5d6672; font-size: 0.88rem; }
+      #requestUri { overflow-wrap: anywhere; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <h1>Prüfanfrage</h1>
+    <p class="muted">EUDI-Wallet-Prüfung mit simulierter Wallet. Ein Klick startet den vollständigen Prüfpfad.</p>
+
+    <section class="banner">
+      <strong>DEMO – bitte nicht für echte Daten verwenden</strong>
+      <ul>
+        <li>Nur TEST-Material: Schlüssel, Zertifikate und Trust List werden beim Start im Arbeitsspeicher erzeugt.</li>
+        <li>Entwicklungsbetrieb: <code>ATTACK_DEV_MODE=true</code>, selbstsigniertes Verifier-Zertifikat.</li>
+        <li>Keine echte Wallet nötig – eine simulierte Wallet legt den Nachweis selbst vor.</li>
+        <li>Alles bleibt auf diesem Rechner (127.0.0.1). Keine Sandbox, keine Behörde, kein Server im Internet.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Szenario wählen</h2>
+      <label for="scenario">Was soll passieren?</label>
+      <select id="scenario"></select>
+      <p class="muted" id="scenarioDescription">–</p>
+      <p>
+        <button id="run" type="button">Prüfung starten</button>
+        <span id="runState" class="muted" aria-live="polite"></span>
+      </p>
+    </section>
+
+    <section id="result" hidden>
+      <h2>Ergebnis</h2>
+      <p><span id="badge" class="badge badge-waiting">–</span></p>
+      <p role="status" aria-live="polite" id="message"></p>
+      <dl id="resultMeta"></dl>
+    </section>
+
+    <section id="checksSection" hidden>
+      <h2>Einzelne Prüfungen</h2>
+      <ul class="checks" id="checks"></ul>
+      <p class="muted" id="checksNote"></p>
+    </section>
+
+    <section id="link" hidden>
+      <h2>Präsentation starten</h2>
+      <p class="muted">
+        Diesen Link hätte hier eine echte Wallet geöffnet. Die Demo-Wallet läuft im Server und legt den Nachweis
+        selbst vor, deshalb ist der Schritt hier nur noch zum Nachlesen.
+      </p>
+      <p><a id="requestUri" href="#" target="_blank" rel="noopener"></a></p>
+      <button id="copy" class="secondary" type="button">Link kopieren</button>
+      <span id="copied" class="muted" hidden>kopiert</span>
+    </section>
+
+    <section id="claims" hidden>
+      <h2>Freigegebene Angaben</h2>
+      <dl id="claimsList"></dl>
+      <p class="muted" id="claimsNote"></p>
+    </section>
+
+    <script type="module">
+      import { rejectionReason } from './status.js';
+
+      const SCENARIOS_PATH = '/demo/scenarios';
+      const RUN_PATH = '/demo/scenario';
+      const ATTRIBUTE_LABELS = {
+        age_over_18: 'volljährig (18+)',
+        given_name: 'Vorname',
+        family_name: 'Nachname',
+        birth_date: 'Geburtsdatum',
+      };
+      const STEP_REASONS = {
+        signature: 'Die Signatur des Ausstellers passt nicht zum Nachweis.',
+        trust_list: 'Der Aussteller steht nicht auf der signierten Trust List.',
+        revocation: 'Das Ausstellerzertifikat ist gesperrt (OCSP).',
+        nonce: 'Die Wallet hat für eine andere Anfrage geantwortet.',
+        validity: 'Sitzung oder Nachweis waren nicht mehr gültig.',
+      };
+
+      const el = (id) => document.getElementById(id);
+      const scenarioSelect = el('scenario');
+      const runButton = el('run');
+      const runState = el('runState');
+      const resultSection = el('result');
+      const badge = el('badge');
+      const message = el('message');
+      const resultMeta = el('resultMeta');
+      const checksSection = el('checksSection');
+      const checksList = el('checks');
+      const checksNote = el('checksNote');
+      const linkSection = el('link');
+      const requestUri = el('requestUri');
+      const copyButton = el('copy');
+      const copied = el('copied');
+      const claimsSection = el('claims');
+      const claimsList = el('claimsList');
+      const claimsNote = el('claimsNote');
+      const scenarioDescription = el('scenarioDescription');
+
+      let catalogue = { scenarios: [], checks: [], requestedClaims: [] };
+
+      function attributeLabel(key) {
+        return ATTRIBUTE_LABELS[key] ?? key;
+      }
+
+      function describe(id) {
+        const scenario = catalogue.scenarios.find((s) => s.id === id);
+        if (scenario) scenarioDescription.textContent = scenario.description;
+      }
+
+      function addRow(dl, term, value) {
+        const dt = document.createElement('dt');
+        const dd = document.createElement('dd');
+        dt.textContent = term;
+        if (value instanceof Node) dd.append(value);
+        else dd.textContent = value;
+        dl.append(dt, dd);
+      }
+
+      function codeChip(value) {
+        const code = document.createElement('code');
+        code.textContent = value;
+        return code;
+      }
+
+      function renderChecks(outcome) {
+        checksList.textContent = '';
+        const broken = outcome.scenario?.brokenStep ?? null;
+        const accepted = outcome.valid === true;
+
+        for (const check of catalogue.checks) {
+          const li = document.createElement('li');
+
+          const mark = document.createElement('span');
+          // Bei einer Ablehnung bricht die Pruefung beim ersten Fehler ab. Die
+          // uebrigen Schritte werden deshalb als nicht erreicht ausgewiesen und
+          // nicht als bestanden – sonst wuerde die Seite etwas behaupten, das
+          // niemand geprueft hat.
+          const passed = accepted || check.id === broken;
+          mark.className = `mark ${passed ? 'mark-ok' : 'mark-skip'}`;
+          mark.textContent = passed ? '✓' : '·';
+
+          const text = document.createElement('div');
+          const label = document.createElement('span');
+          label.textContent = check.label;
+          text.append(label);
+
+          const why = document.createElement('span');
+          why.className = 'why';
+          if (accepted) {
+            why.textContent = 'geprüft, ohne Beanstandung';
+          } else if (check.id === broken) {
+            why.textContent = STEP_REASONS[check.id] ?? 'hier ist die Prüfung gescheitert';
+          } else {
+            why.textContent = 'nicht erreicht, die Prüfung war vorher gescheitert';
+          }
+          text.append(why);
+
+          li.append(mark, text);
+          checksList.append(li);
+        }
+
+        checksNote.textContent = accepted
+          ? 'Der Verifier hat alle fünf Prüfungen durchlaufen und die Präsentation angenommen.'
+          : `Der Verifier bricht beim ersten Fehler ab. Gebrochen wurde: ${STEP_REASONS[broken] ?? broken}.`;
+        checksSection.hidden = false;
+      }
+
+      function render(outcome) {
+        const accepted = outcome.valid === true;
+        badge.textContent = accepted ? 'angenommen' : 'abgelehnt';
+        badge.className = `badge ${accepted ? 'badge-accepted' : 'badge-rejected'}`;
+        message.textContent = rejectionReason(outcome.error) ?? 'Die Prüfung wurde abgelehnt.';
+
+        resultMeta.textContent = '';
+        addRow(resultMeta, 'Szenario', outcome.scenario?.label ?? outcome.scenario?.id ?? '–');
+        addRow(resultMeta, 'Angefragte Attribute', catalogue.requestedClaims.map(attributeLabel).join(', '));
+        if (!accepted && outcome.error) {
+          addRow(resultMeta, 'Ablehnungscode', codeChip(outcome.error));
+        }
+        if (outcome.resultStatus) {
+          addRow(resultMeta, 'Status beim Verifier', outcome.resultStatus);
+        }
+        resultSection.hidden = false;
+
+        renderChecks(outcome);
+
+        if (outcome.requestObjectUri) {
+          requestUri.href = outcome.requestObjectUri;
+          requestUri.textContent = outcome.requestObjectUri;
+          linkSection.hidden = false;
+        }
+
+        claimsList.textContent = '';
+        if (accepted) {
+          for (const [key, value] of Object.entries(outcome.claims ?? {})) {
+            addRow(claimsList, attributeLabel(key), typeof value === 'string' || typeof value === 'number' ? String(value) : JSON.stringify(value));
+          }
+          claimsNote.textContent =
+            'Das sind genau die angefragten Attribute. Die Wallet hält mehr im Credential, gibt aber nur heraus, was angefragt wurde.';
+          claimsSection.hidden = false;
+        } else {
+          claimsNote.textContent = '';
+          claimsSection.hidden = true;
+        }
+      }
+
+      runButton.addEventListener('click', async () => {
+        const scenario = scenarioSelect.value;
+        runButton.disabled = true;
+        runState.textContent = 'läuft …';
+        resultSection.hidden = true;
+        checksSection.hidden = true;
+        claimsSection.hidden = true;
+        linkSection.hidden = true;
+        try {
+          const res = await fetch(RUN_PATH, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ scenario }),
+          });
+          const text = await res.text();
+          if (!res.ok) throw new Error(text);
+          render(JSON.parse(text));
+          runState.textContent = 'fertig';
+        } catch {
+          runState.textContent = 'Die Prüfung konnte nicht durchgeführt werden.';
+          badge.textContent = 'fehlgeschlagen';
+          badge.className = 'badge badge-failed';
+          message.textContent = 'Die Demo konnte den Vorgang nicht abschließen.';
+          resultSection.hidden = false;
+        } finally {
+          runButton.disabled = false;
+        }
+      });
+
+      scenarioSelect.addEventListener('change', () => describe(scenarioSelect.value));
+
+      copyButton.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(requestUri.href);
+          copied.hidden = false;
+        } catch {
+          copied.hidden = true;
+        }
+      });
+
+      const params = new URLSearchParams(location.search);
+      const fromUrl = params.get('szenario');
+
+      const start = await fetch(SCENARIOS_PATH)
+        .then((res) => res.json())
+        .then((data) => {
+          catalogue = data;
+          for (const scenario of data.scenarios) {
+            const option = document.createElement('option');
+            option.value = scenario.id;
+            option.textContent = scenario.label;
+            scenarioSelect.append(option);
+          }
+          const wanted = data.scenarios.some((s) => s.id === fromUrl) ? fromUrl : 'good';
+          scenarioSelect.value = wanted;
+          describe(wanted);
+          if (fromUrl && fromUrl !== 'good') {
+            document.querySelector('#scenario')?.scrollIntoView({ block: 'nearest' });
+            runButton.click();
+          }
+        })
+        .catch(() => {
+          runState.textContent = 'Die Szenarien konnten nicht geladen werden.';
+          runButton.disabled = true;
+        });
+      void start;
+    </script>
+  </body>
+</html>

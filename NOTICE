@@ -1,0 +1,16 @@
+Attack
+======
+
+OpenID4VP/DCQL/SD-JWT-Verification baut auf den folgenden Paketen der
+Organisation „OpenEUDI" (https://openeudi.eu) auf, alle lizenziert unter der
+Apache License 2.0:
+
+  - @openeudi/openid4vp  (v0.11.1)  — https://github.com/openeudi/openid4vp
+  - @openeudi/core       (v0.8.0)   — https://github.com/openeudi/core
+  - @openeudi/dcql       (v0.2.0)   — https://github.com/openeudi/dcql
+
+Vollständige Lizenztexte liegen in node_modules/<paket>/LICENSE; die Zusammenstellung
+aller direkten Abhängigkeiten mit Version und Lizenz steht in docs/sicherheit.md
+(Schritt 4).
+
+Apache License 2.0 — siehe https://www.apache.org/licenses/LICENSE-2.0

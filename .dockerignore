@@ -1,0 +1,62 @@
+# Was NICHT in das Image gehoert. Ergänzt am 2026-09-28 (Paket B).
+#
+# Reihenfolge ist relevant: die späteren Muster gewinnen. Wer hier eine Regel
+# ergänzt, muss prüfen, ob eine spätere Zeile sie wieder aufhebt.
+
+# Quellcode-Historie und CI-Konfiguration. Das Image baut aus dem Arbeitsver-
+# zeichnis, nicht aus einem Checkout.
+.git
+.git*
+.github
+
+# Geheimnisse und Schlüsselmaterial. Die PEM-Dateien werden zur Laufzeit
+# ausschließlich über einen Bind-Mount oder Docker-Secrets hereingereicht, nie
+# gebacken. `.env*` deckt auch `.env.example` ab, was hier gewollt ist: eine
+# Beispieldatei ist kein Geheimnis, gehört aber nicht in ein Produktionsimage.
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets/
+
+# Abhängigkeiten und Build-Ausgaben. `npm ci` läuft im Image selbst.
+node_modules
+coverage
+dist
+
+# Submodule und andere Repos. Weder gebaut noch eingebunden.
+sdk
+test
+
+# Dokumentation, Protokolle, Werkzeugskripte. Der Dienst liest davon nichts.
+docs
+site
+tools
+monitoring
+examples
+*.log
+*.md
+
+# Konfigurationssatz der Website. `site.config.json` wird von
+# `tools/site-url.mjs` gelesen, aber nicht vom Dienst im Container.
+site.config.json
+netlify.toml
+
+# Testartefakte, falls jemand sie lokal gebaut hat.
+.vitest
+coverage-final.json
+
+# Editor- und Betriebssystemreste.
+.DS_Store
+.vscode
+.idea
+
+# Das Dockerfile selbst und diese Datei gehören nicht in den Kontext.
+Dockerfile
+.dockerignore

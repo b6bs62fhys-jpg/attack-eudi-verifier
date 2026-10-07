@@ -1,0 +1,8 @@
+{
+  "name": "attack-verifier-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types src/server.ts"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+coverage/
+dist/
+build/
+*.log
+.DS_Store
+.env
+sdk/kotlin/build/
+sdk/kotlin/.gradle/
+sdk/typescript/dist/
+sdk/python/build/
+sdk/python/dist/
+sdk/python/src/*.egg-info/
+sdk/python/.pytest_cache/

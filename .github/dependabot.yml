@@ -1,0 +1,126 @@
+# Abhängigkeiten werden von Dependabot gepflegt.
+#
+# Bewusste Entscheidungen, die man hier nicht erraten sollte:
+#
+# - `open-pull-requests-limit: 5` ist absort niedrig. Dependabot reicht sonst
+#   Dutzende PRs auf einmal ein, die niemand mehr priorisieren kann. Fünf
+#   gleichzeitig sind bearbeitbar; wer mehr will, hebt es an.
+# - Minor und Patch sind zu je einer Gruppe zusammengefasst. Ohne Gruppe käme
+#   für dieselbe Bibliothek ein PR für das Patch-Release und ein zweites für
+#   das Minor-Release, was zweimal dieselbe Testsuite und zweimal denselben
+#   Review bedeutet.
+# - `versioning-strategy: increase` für npm, weil das Repository exakte
+#   Versionen pinnt (root package.json ohne ^ und ~). Ohne diese Angabe würde
+#   Dependabot Lockfiles auch dann aktualisieren, wenn das Manifest eine
+#   exakte Version verlangt, und damit am Manifest vorbeiarbeiten.
+# - security-updates laufen über einen eigenen Eintrag und werden nicht von der
+#   Gruppenregel erfasst: sie sind dringlich und dürfen nicht warten, bis ein
+#   Minor-PR angenommen ist.
+version: 2
+
+updates:
+  # Wurzel: Node-Toolchain (eslint, typescript-eslint, vitest, vite).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+    security-updates-only: false
+
+  # TypeScript-SDK: eigener Lockfile, eigene Versionierung.
+  - package-ecosystem: npm
+    directory: /sdk/typescript
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+
+  # Beispielanwendung. Es gibt dort bewusst keinen Lockfile, weil die
+  # Beispielanwendung nie veröffentlicht wird und ihre Versionen aus dem
+  # Wurzel-Lockfile stammen. Dependabot meldet dafür nur direkte
+  # Abhängigkeiten, ohne aufgelöste transitive Versionen.
+  - package-ecosystem: npm
+    directory: /examples/verifier-demo
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+
+  # Python-SDK: Werkzeuge mypy und pytest stehen als Extra in pyproject.toml.
+  - package-ecosystem: pip
+    directory: /sdk/python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+
+  # Kotlin-SDK: Kotlin-Plugin und kotlinx-serialization über build.gradle.kts.
+  # Es gibt bewusst keinen Gradle-Wrapper (siehe sdk/kotlin/README.md), also
+  # auch keine Wrapper-Version für Dependabot zu pflegen.
+  - package-ecosystem: gradle
+    directory: /sdk/kotlin
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+
+  # Die CI selbst: checkout, setup-node, setup-python, setup-java, setup-gradle.
+  # Ein Update hier verändert, worauf sich jede andere Prüfung verlässt, und
+  # gehört deshalb in einen eigenen PR statt in einer Abhängigkeitsgruppe zu
+  # verschwinden.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      minor:
+        update-types:
+          - minor
+          - patch
+
+  # Das Basisimage des Produktionscontainers. Ergänzt 28.09.2026.
+  #
+  # `open-pull-requests-limit: 1`: das Image ist ein einziger gepinnter Digest
+  # in zwei FROM-Zeilen. Mehr als ein offener PR bedeutet hier zwei konkurrierende
+  # Bumps desselben Digests, die sich gegenseitig behindern. Zwei PRs wären
+  # außerdem ein Lösen, ob das Basisimage in der CI überhaupt erreichbar ist –
+  # dafür ist der `docker-build`-Job zuständig, nicht Dependabot.
+  #
+  # Dependabot schlägt hier eine neue Tag-Version vor. Den Digest zu übernehmen
+  # bleibt Handarbeit: Dependabot aktualisiert die FROM-Zeile, aber ein Digest
+  # muss erhoben und mit Datum bestätigt werden. Der PR-Text sagt das, sonst
+  # merged jemand einen Digest, den niemand geprüft hat.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      node-base:
+        update-types:
+          - minor
+          - patch

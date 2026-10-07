@@ -1,0 +1,610 @@
+openapi: 3.1.0
+info:
+  title: Attack EUDI Verifier
+  version: 0.1.0
+  description: Attack EUDI Wallet Verifier API. Der Dienst ist ein Prototyp;
+    Schlüssel, Zertifikate und Beispielwerte sind TEST-Material.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: http://127.0.0.1:8080
+    description: Lokaler Standardport
+tags:
+  - name: health
+    description: Laufzeitstatus
+  - name: verification
+    description: Prüfanfragen und Ergebnisse
+  - name: wallet
+    description: Wallet-Präsentationen
+paths:
+  /live:
+    get:
+      operationId: getLiveness
+      tags:
+        - health
+      summary: Liveness-Prüfung
+      description: Bewusst unabhängig von externen Abhängigkeiten, damit ein
+        Neustart nicht an einer gestörten OCSP- oder Trustlist-Antwort hängt.
+        Wie /health nicht rate-limitiert.
+      security: []
+      responses:
+        "200":
+          description: Prozess läuft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /health:
+    get:
+      operationId: getHealth
+      tags:
+        - health
+      summary: Health-Prüfung
+      security: []
+      responses:
+        "200":
+          description: Dienst läuft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LivenessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /ready:
+    get:
+      operationId: getReadiness
+      tags:
+        - health
+      summary: Readiness-Prüfung
+      description: Meldet je Abhängigkeit config, issuer_trust, ocsp und
+        onboarding. In Produktion schlägt die Prüfung fehl, wenn eine
+        Abhängigkeit den Status failed liefert. Wie /health nicht
+        rate-limitiert.
+      security: []
+      responses:
+        "200":
+          description: Dienst ist bereit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "503":
+          description: Dienst ist nicht bereit; details stehen in checks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReadinessResponse"
+  /metrics:
+    get:
+      operationId: getMetrics
+      tags:
+        - health
+      summary: Prometheus-Metriken
+      description: Zähler und Summen im Prometheus-Textformat 0.0.4. Es werden
+        ausschließlich Counter und Summen geliefert, keine Histogramme, daher
+        sind Quantile wie p95 aus diesen Daten nicht berechenbar. Die Werte
+        liegen prozesslokal im Arbeitsspeicher und werden beim Neustart
+        zurückgesetzt. Wie /health nicht rate-limitiert.
+      security: []
+      responses:
+        "200":
+          description: Metriken im Prometheus-Textformat
+          content:
+            text/plain:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /v1/verification-requests:
+    post:
+      operationId: createVerificationRequest
+      tags:
+        - verification
+      summary: Prüfanfrage erzeugen
+      description: Erzeugt eine mandantenbezogene DCQL-Abfrage. Ohne explizite Claims
+        werden die Claims des Mandantenprofils verwendet. Das Request Object
+        nutzt direct_post.jwt und enthält den öffentlichen ECDH-Schlüssel der
+        Sitzung.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRequestInput"
+      responses:
+        "201":
+          description: Prüfanfrage erzeugt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRequestOutput"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /v1/verification-requests/{id}:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      operationId: getVerificationRequest
+      tags:
+        - verification
+      summary: Ergebnis oder Status abfragen
+      description: Ein fertiges Ergebnis wird genau einmal ausgeliefert. Danach ist
+        die Ressource für diesen Mandanten nicht mehr unterscheidbar von einer
+        nie vorhandenen Ressource.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Status oder fertiges Ergebnis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResultStatus"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+    delete:
+      operationId: deleteVerificationRequest
+      tags:
+        - verification
+      summary: Sitzung löschen
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Sitzung gelöscht
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /v1/verification-requests/{id}/request-object:
+    parameters:
+      - $ref: "#/components/parameters/SessionId"
+    get:
+      operationId: getRequestObject
+      tags:
+        - wallet
+      summary: Signiertes Request Object abrufen
+      description: Öffentlich abrufbare JAR Ressource für die Wallet. Der Inhalt ist
+        application/oauth-authz-req+jwt.
+      security: []
+      responses:
+        "200":
+          description: Signiertes Request Object
+          content:
+            application/oauth-authz-req+jwt:
+              schema:
+                type: string
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /direct_post:
+    post:
+      operationId: submitDirectPost
+      tags:
+        - wallet
+      summary: Wallet-Präsentation annehmen
+      description: >-
+        Öffentliche Wallet-Route. Ohne JWE werden vp_token und state im
+        Klartext angenommen. Bei JWE wird der kid vor der Entschlüsselung
+        geprüft, die Sitzung verbraucht und state muss exakt dem kid
+        entsprechen. 401 ist hier ausgeschlossen: die Route ist öffentlich, es
+        gab nichts zu authentifizieren. Der Status unterscheidet, ob der Dienst
+        die Präsentation verarbeiten konnte, nicht ob sie gültig ist: eine
+        nicht angenommene Präsentation trägt 422, eine verarbeitete und inhaltlich
+        abgelehnte trägt 200 mit valid=false.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/DirectPostEnvelope"
+                - $ref: "#/components/schemas/DirectPostJwe"
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                vp_token:
+                  type: string
+                  description: DCQL-Envelope als JSON-Objekt, JSON-Array oder roher SD-JWT
+                state:
+                  type: string
+                response:
+                  type: string
+                  description: Compact JWE für direct_post.jwt
+      responses:
+        "200":
+          description: >-
+            Präsentation wurde verarbeitet; `valid` kennzeichnet das Prüfergebnis.
+            `valid: true` bedeutet gültig. `valid: false` bedeutet inhaltlich
+            abgelehnt (etwa abgelaufenes Aussteller-Zertifikat, nicht vertrauter
+            Aussteller, fehlender Claim); der Ablehnungsgrund steht im Feld
+            `error`, der Body ist dann
+            {"ok": true, "valid": false, "error": "<code>"}.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresentationResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "413":
+          $ref: "#/components/responses/PayloadTooLarge"
+        "422":
+          description: >-
+            Präsentation nicht angenommen, das heißt: der Dienst konnte sie nicht
+            verarbeiten. Das ist nicht dasselbe wie eine inhaltliche Ablehnung,
+            die 200 mit `valid: false` trägt. Der Body ist
+            {"ok": false, "valid": false, "error": "<code>"}, etwa
+            unknown_state, state_invalid, vp_token_invalid, session_reused oder
+            Replay.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PresentationResponse"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: API-Schlüssel des Mandanten; serverseitig nur als SHA-256-Hash
+        gespeichert.
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Sitzungs-ID
+      schema:
+        type: string
+        maxLength: 128
+  schemas:
+    CreateRequestInput:
+      type: object
+      properties:
+        claims:
+          type: array
+          minItems: 1
+          maxItems: 32
+          items:
+            type: string
+            pattern: ^[A-Za-z0-9_.-]{1,64}$
+          description: Nur Claims im Mandantenprofil sind erlaubt.
+        vct:
+          type: string
+          maxLength: 256
+          description: Muss dem vct des Mandantenprofils entsprechen.
+        registration_ref:
+          $ref: "#/components/schemas/RegistrationRef"
+    RegistrationRef:
+      type: object
+      additionalProperties: true
+      required:
+        - client_name
+        - client_id
+        - registry_uri
+        - intended_use_id
+      properties:
+        client_name:
+          type: string
+        client_id:
+          type: string
+        registry_uri:
+          type: string
+          format: uri
+        intended_use_id:
+          type: string
+    CreateRequestOutput:
+      type: object
+      required:
+        - sessionId
+        - state
+        - expiresAt
+        - requestObject
+        - responseUri
+        - requestObjectUri
+      properties:
+        sessionId:
+          type: string
+        state:
+          type: string
+        expiresAt:
+          type: integer
+          format: int64
+        requestObject:
+          type: string
+        responseUri:
+          type: string
+          format: uri
+        requestObjectUri:
+          type: string
+          format: uri
+    DirectPostEnvelope:
+      type: object
+      required:
+        - vp_token
+        - state
+      properties:
+        vp_token:
+          type: object
+          minProperties: 1
+          additionalProperties:
+            type: array
+            minItems: 1
+            items:
+              oneOf:
+                - type: string
+                - type: object
+                  additionalProperties: true
+        state:
+          type: string
+          minLength: 1
+          maxLength: 128
+    DirectPostJwe:
+      type: object
+      required:
+        - response
+      properties:
+        response:
+          type: string
+          description: Compact JWE mit kid = state.
+    PresentationResponse:
+      type: object
+      required:
+        - ok
+        - valid
+      properties:
+        ok:
+          type: boolean
+        valid:
+          type: boolean
+        error:
+          type: string
+          description: Fester, dokumentierter Fehlercode; keine internen Details.
+    VerificationResult:
+      type: object
+      required:
+        - at
+        - valid
+        - claims
+        - issuerCountry
+        - error
+      properties:
+        at:
+          type: string
+          format: date-time
+        valid:
+          type: boolean
+        claims:
+          type: object
+          additionalProperties: true
+        issuerCountry:
+          type: string
+        error:
+          type: string
+    ResultStatus:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - pending
+            - completed
+            - expired
+            - not_found
+        result:
+          $ref: "#/components/schemas/VerificationResult"
+    LivenessResponse:
+      type: object
+      required:
+        - ok
+        - status
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+          const: live
+        app:
+          type: string
+    ReadinessResponse:
+      type: object
+      required:
+        - ok
+        - status
+        - checks
+      properties:
+        ok:
+          type: boolean
+        status:
+          type: string
+          enum:
+            - ready
+            - not_ready
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum:
+              - ok
+              - degraded
+              - failed
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          enum:
+            - unauthorized
+            - not_found
+            - rate_limited
+            - payload_too_large
+            - invalid_json
+            - invalid_request
+            - internal_error
+            - claims_invalid
+            - vct_invalid
+            - registration_ref_invalid
+            - registration_ref_mismatch
+            - tenant_not_registered
+            - tenant_registration_invalid
+            - credential_revoked
+            - credential_suspended
+            - credential_status_unknown
+            - credential_status_missing
+            - credential_status_reference_invalid
+            - status_list_unreachable
+            - status_list_timeout
+            - status_list_too_large
+            - status_list_signature_invalid
+            - status_list_malformed
+            - status_list_expired
+            - certificate_expired
+            - certificate_not_yet_valid
+            - certificate_revoked
+            - certificate_suspended
+            - revocation_unavailable
+            - revocation_timeout
+            - revocation_list_too_large
+            - revocation_list_signature_invalid
+            - revocation_list_malformed
+            - revocation_list_expired
+            - revocation_status_unknown
+            - revocation_source_missing
+            - issuer_trust_anchor_not_found
+            - issuer_chain_invalid
+            - multi_credential_unsupported
+            - presentation_invalid
+            - state_invalid
+            - vp_token_invalid
+            - vp_token_too_long
+            - too_many_disclosures
+            - jwe_too_long
+            - malformed_jwe_header
+            - missing_kid
+            - jwe_not_supported
+            - jwe_decrypt_failed
+            - missing_state_in_jwe
+            - unknown_state
+            - session_expired
+            - session_reused
+            - unknown_session
+            - state_mismatch
+            - issuer_trust_anchors_empty
+            - issuer_not_trusted
+            - issuer_certificate_revoked
+            - issuer_certificate_suspended
+            - issuer_revocation_check_failed
+            - verifier_certificate_expired
+            - verifier_certificate_not_yet_valid
+            - entitlement_unknown
+            - wrpac_policy_missing
+            - wrpac_contact_san_missing
+            - wrpac_key_usage_invalid
+            - wrpac_ext_key_usage_invalid
+            - trust_path_not_found
+            - wrprc_malformed
+            - wrprc_type_invalid
+            - wrprc_unsupported_alg
+            - wrprc_header_invalid
+            - wrprc_signature_invalid
+            - wrprc_claims_missing
+            - wrprc_policy_id_missing
+            - wrprc_not_yet_valid
+            - wrprc_expired
+            - wrprc_validity_window_invalid
+            - wrprc_entitlement_missing
+            - unspecified
+  responses:
+    BadRequest:
+      description: Ungültige Eingabe
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Ungültiger oder fehlender API-Schlüssel
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Mandant nicht registriert oder Registrierung ungültig
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Ressource unbekannt, gelöscht, abgelaufen oder mandantenfremd
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    PayloadTooLarge:
+      description: Körper über 64 KiB
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: >-
+        Zu viele Anfragen im Ratenfenster. Antwortet mit den Headern
+        x-ratelimit-limit, x-ratelimit-remaining und retry-after. /live,
+        /health, /ready und /metrics sind ausgenommen. Voreinstellung sind 60
+        Anfragen je Mandant und 120 je IP-Adresse in 60 Sekunden.
+      headers:
+        x-ratelimit-limit:
+          required: true
+          schema:
+            type: integer
+        x-ratelimit-remaining:
+          required: true
+          schema:
+            type: integer
+        retry-after:
+          required: true
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalError:
+      description: Unerwarteter interner Fehler ohne Details
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema

@@ -1,0 +1,17 @@
+{
+  "name": "waltid",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@peculiar/x509": "^2.1.0",
+    "jose": "^6.1.3",
+    "reflect-metadata": "^0.2.2"
+  }
+}

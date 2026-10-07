@@ -1,0 +1,365 @@
+openapi: 3.0.3
+
+# Schnittstellenbeschreibung des Prüfdienstes.
+#
+# Erzeugt am 30.09.2026 aus den Routen in src/service/app.ts und den
+# Fehlercodes in docs/fehlercodes.md. Geprüft von
+# src/openapi-abgleich.test.ts: Jede Route hier muss in ROUTES stehen und
+# umgekehrt.
+#
+# Bewusst knapp. Es sind nur die Felder aufgeführt, die aus dem Code oder einem
+# Test belegt sind. Was nicht belegt ist, steht nicht hier.
+#
+# Produktname: `Attack`. Arbeitsname, siehe docs/umbenennung-inventar.md.
+
+info:
+  title: Prüfdienst für EUDI-Wallet-Präsentationen
+  version: 0.1.0
+  description: |
+    Nimmt eine Wallet-Präsentation entgegen, prüft Zertifikatskette, Aussteller
+    und Sperrstatus und gibt ausschließlich die angeforderten Angaben zurück.
+
+    Stand 30.09.2026, `main` commit `88f9cb8`. Es liegt keine Zertifizierung
+    vor, es gab keinen Test gegen eine echte Wallet und keine Referenzkunden.
+    Nicht als Produktionsbeschreibung lesen, `docs/produktionsreife.md`.
+
+servers:
+  - url: http://127.0.0.1:18100
+    description: Lokaler Entwicklungsbetrieb, kein TLS
+
+security:
+  - mandantKey: []
+
+components:
+  securitySchemes:
+    mandantKey:
+      type: http
+      scheme: bearer
+      description: |
+        Mandantenschlüssel im `authorization`-Header, nicht in `x-api-key`.
+        Ohne oder mit unbekanntem Schlüssel 401, `docs/fehlercodes.md:58`.
+
+  schemas:
+    Fehler:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Fehlercode, siehe docs/fehlercodes.md
+
+    LiveAntwort:
+      type: object
+      required: [ok, status, app]
+      properties:
+        ok: { type: boolean }
+        status: { type: string, enum: [live] }
+        app: { type: string }
+
+    ReadyAntwort:
+      type: object
+      required: [ok, status, checks]
+      properties:
+        ok: { type: boolean }
+        status: { type: string, enum: [ready] }
+        checks:
+          type: object
+          required: [config, issuer_trust, ocsp, onboarding]
+          properties:
+            config: { type: string, enum: [ok, degraded, failed] }
+            issuer_trust: { type: string, enum: [ok, degraded, failed] }
+            ocsp: { type: string, enum: [ok, degraded, failed] }
+            onboarding: { type: string, enum: [ok, degraded, failed] }
+
+    AnfrageErstellen:
+      type: object
+      properties:
+        claims:
+          type: array
+          items: { type: string }
+          description: |
+            Angeforderte Angaben. Jeder Name muss im Anfrageprofil des
+            Mandanten stehen, sonst 400 `claims_invalid`
+            (`docs/fehlercodes.md:71`). Das Standardprofil `pid_basis` kennt
+            `given_name` und `birth_date` (`src/service/profile.ts:13-18`).
+        vct:
+          type: string
+          description: Format, muss zum Mandantenprofil passen
+        registration_ref:
+          type: string
+          description: Nur mit aktivem Onboarding-Gate
+
+    AnfrageAntwort:
+      type: object
+      required: [sessionId, state, expiresAt, requestObject, responseUri, requestObjectUri]
+      properties:
+        sessionId: { type: string, format: uuid }
+        state:
+          type: string
+          format: uuid
+          description: Im Entwicklungsbetrieb gleich sessionId, nicht zugesichert
+        expiresAt: { type: integer, format: int64 }
+        requestObject:
+          type: string
+          description: Signiertes JWT, vom Dienst selbst signiert
+        responseUri: { type: string, format: uri }
+        requestObjectUri: { type: string, format: uri }
+
+    ErgebnisStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [pending, completed, expired, not_found]
+          description: |
+            `completed` nur, wenn die Prüfung durchlief. Nach einer Ablehnung
+            bleibt der Status `pending`, es wird kein Ergebnis abgelegt. Geprüft
+            in `src/service/issuer-revocation.test.ts:228`.
+        result:
+          type: object
+          description: Nur bei `completed`. Enthält ausschließlich angeforderte Angaben.
+
+    DirekteAntwort:
+      type: object
+      required: [ok, valid]
+      properties:
+        ok: { type: boolean }
+        valid:
+          type: boolean
+          description: |
+            `false` bedeutet inhaltlich abgelehnt, nicht unlesbar. HTTP 200
+            mit `valid: false` ist kein Fehlerfall, 422 wäre einer.
+        error:
+          type: string
+          description: Ablehnungsgrund, siehe docs/fehlercodes.md
+
+paths:
+  /live:
+    get:
+      # Betriebsroute, verlangt keinen Mandantenschlüssel.
+      security: []
+      summary: Prozess läuft
+      operationId: live
+      security: []
+      responses:
+        '200':
+          description: Der Prozess antwortet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LiveAntwort' }
+
+  /health:
+    get:
+      # Betriebsroute, verlangt keinen Mandantenschlüssel.
+      security: []
+      summary: Prozess läuft, gleiche Aussage wie /live
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: Der Prozess antwortet
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LiveAntwort' }
+
+  /ready:
+    get:
+      # Betriebsroute, verlangt keinen Mandantenschlüssel.
+      security: []
+      summary: Abhängigkeiten einzeln benannt
+      operationId: ready
+      security: []
+      responses:
+        '200':
+          description: Abhängigkeiten mit ihrem Zustand
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReadyAntwort' }
+
+  /metrics:
+    get:
+      # Betriebsroute, verlangt keinen Mandantenschlüssel.
+      security: []
+      summary: Betriebskennzahlen
+      operationId: metrics
+      security: []
+      responses:
+        '200':
+          description: Kennzahlen im Textformat
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /v1/verification-requests:
+    post:
+      summary: Prüfanfrage anlegen
+      operationId: createVerificationRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnfrageErstellen' }
+      responses:
+        '201':
+          description: Die Sitzung ist angelegt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AnfrageAntwort' }
+        '400':
+          description: Eingabe nicht zulässig
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '401':
+          description: Kein oder unbekannter Mandantenschlüssel
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '403':
+          description: Mandant ohne Registrierungsmaterial, nur mit Onboarding-Gate
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '413':
+          description: Anfragekörper über 64 KiB
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '429':
+          description: Zu viele Anfragen im Ratenfenster
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+
+  /v1/verification-requests/{id}:
+    get:
+      summary: Ergebnis der Sitzung abholen
+      operationId: getVerificationResult
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Zustand der Sitzung
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErgebnisStatus' }
+        '404':
+          description: |
+            Sitzung unbekannt, gelöscht, verbraucht, abgelaufen oder einem
+            fremden Mandanten gehörend. Bewusst nicht unterscheidbar,
+            `docs/fehlercodes.md:60`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '429':
+          description: Zu viele Anfragen im Ratenfenster
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+    delete:
+      summary: Sitzung löschen
+      operationId: deleteVerificationRequest
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Gelöscht
+        '404':
+          description: Sitzung unbekannt oder fremd
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '429':
+          description: Zu viele Anfragen im Ratenfenster
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+
+  /v1/verification-requests/{id}/request-object:
+    get:
+      summary: Signiertes Anfrageobjekt der Sitzung
+      operationId: getRequestObject
+      # Im Code ist die Route `public`, sie verlangt keinen Mandantenschlüssel.
+      # Das ist als public in src/service/app.ts hinterlegt.
+      security: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Das signierte JWT im Textformat
+          content:
+            application/jwt:
+              schema: { type: string }
+        '404':
+          description: Sitzung unbekannt, gelöscht, verbraucht oder abgelaufen
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+
+  /direct_post:
+    post:
+      summary: Antwort der Wallet einreichen
+      operationId: directPost
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [vp_token, state]
+              properties:
+                vp_token:
+                  type: string
+                  description: SD-JWT im Klartext
+                state:
+                  type: string
+                  description: Muss zur Sitzung passen
+                response:
+                  type: string
+                  description: |
+                    Alternative zu `vp_token` für eine verschlüsselte Antwort.
+                    Der Dienst liest den Inhalt anhand dieses Feldes als
+                    verschlüsselt, `src/service/app.ts:79-90`.
+      responses:
+        '200':
+          description: |
+            Verarbeitet. `valid: false` bedeutet inhaltliche Ablehnung, kein
+            Fehlerfall.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DirekteAntwort' }
+        '400':
+          description: Pflichtfeld fehlt oder Körper unlesbar
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '413':
+          description: Anfragekörper über 64 KiB
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '422':
+          description: |
+            Konnte nicht verarbeitet werden, zum Beispiel `unknown_state` bei
+            einem unbekannten Zustand oder `missing_kid` bei einer
+            unverschlüsselten Antwort im Feld `response`,
+            `docs/fehlercodes.md:143-166`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }
+        '429':
+          description: Zu viele Anfragen im Ratenfenster
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Fehler' }

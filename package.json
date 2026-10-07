@@ -1,0 +1,45 @@
+{
+  "name": "attack",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gehosteter EUDI Wallet Verifier für den deutschen Mittelstand – Basisentscheidung auf @openeudi/openid4vp. Prototyp, nicht für den Produktivbetrieb.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "loadtest": "node --experimental-strip-types tools/loadtest-main-api.ts",
+    "test:flake": "node tools/flake-watch.mjs",
+    "site:url": "node tools/site-url.mjs",
+    "site:url:check": "node tools/site-url.mjs --check",
+    "cli": "node --experimental-strip-types src/cli/main.ts",
+    "lint": "eslint . --max-warnings 0",
+    "demo": "ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true NODE_ENV=development node --experimental-strip-types src/demo/flow-main.ts",
+    "demo:flow": "npm run demo",
+    "demo:cli": "node --experimental-strip-types src/demo/demo.ts",
+    "service": "node --experimental-strip-types src/service/run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@openeudi/core": "0.8.0",
+    "@openeudi/dcql": "0.2.0",
+    "@openeudi/openid4vp": "0.11.1",
+    "@peculiar/asn1-ocsp": "2.9.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@peculiar/x509": "2.1.0",
+    "@types/node": "22.20.4",
+    "@vitest/coverage-v8": "5.0.1",
+    "eslint": "10.11.0",
+    "eslint-plugin-promise": "7.3.0",
+    "jose": "6.1.3",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.70.1",
+    "vite": "8.3.1",
+    "vitest": "5.0.1"
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@eudi-verify-sdk/typescript",
+  "version": "0.1.0",
+  "description": "Typed TypeScript client for the Attack EUDI Verifier API.",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "prepublishOnly": "npm run build",
+    "generate": "openapi-typescript ../../openapi.yaml -o src/generated.ts",
+    "generate:check": "node scripts/generate-check.mjs"
+  },
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.1",
+    "vitest": "5.0.1"
+  }
+}

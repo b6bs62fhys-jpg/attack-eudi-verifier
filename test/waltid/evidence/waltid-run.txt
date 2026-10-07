@@ -1,0 +1,15 @@
+Request-URI HTTP 200
+Request object (JWT) erhalten, Länge 3010
+Request-Object-Header: {"alg":"ES256","typ":"oauth-authz-req+jwt","kid":"_nd-T2YRYLSmuKkJZlRI641zrCIJLTpiHeqMwXuvdug","x5cAnzahl":1}
+X.509-Chain: 1 Zertifikat (CN=verifier.example.com) – public key extrahiert
+x509_hash prüfen: OK (Berechnung == client_id)
+Request-Object-Signatur: GÜLTIG (ES256, Schlüssel aus x5c)
+payload.response_type: vp_token | response_mode: direct_post | state: d384615c-0064-4ce3-b42c-23c0b1012419
+dcql_query: {"credentials":[{"id":"credential_1","format":"dc+sd-jwt","meta":{"vct_values":["https://issuer.demo.walt.id/draft13/identity_credential"]},"claims":[{"path":["given_name"]},{"path":["family_name"]}]}]}
+Issuer (TEST, im Speicher): did:key:z6MkhVkGeLsWRf8vXsMbxghX9rRNM6t3xtSqv4LDbFFGpaWk
+SD-JWT (Issuer-Signatur EdDSA) erzeugt
+POST vp_token -> http://localhost:7004/verification-session/222c5ab0-9087-49cf-ac43-f00578185295/response | HTTP 200
+Response-Body: {"status":"received","message":"Presentation received and is being processed."}
+--- ERGEBNIS ---
+status: SUCCESSFUL | attempted: true | overallSuccess: true
+vorgestellte Credential-Daten: {"vct":"https://issuer.demo.walt.id/draft13/identity_credential","given_name":"Ada","family_name":"Zhao","issuer":"did:key:z6MkhVkGeLsWRf8vXsMbxghX9rRNM6t3xtSqv4LDbFFGpaWk"}

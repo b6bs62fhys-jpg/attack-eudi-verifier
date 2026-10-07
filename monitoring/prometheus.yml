@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: attack-verifier
+    metrics_path: /metrics
+    static_configs:
+      # Replace with the service address in the deployment environment.
+      - targets: ["127.0.0.1:8080"]

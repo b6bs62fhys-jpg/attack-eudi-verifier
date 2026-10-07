@@ -1,0 +1,25 @@
+miEUDIverifier (github.com/Mibuw/miEUDIverifier) – Testlauf 2026-09-22
+Compiler: dotnet 10.0.401 (brew formula; Cask erfordert sudo -> nicht verwendet)
+
+dotnet build -c Release:
+  43 Warning(s) (nur CS1591 Missing XML comment), 0 Error(s)
+
+dotnet test -c Release (DOTNET_ROLL_FORWARD=Major auf .NET 10-Runtime):
+  Passed! - Failed: 0, Passed: 48, Skipped: 0, Total: 48
+  (48/48 Unit-Tests des Core-Pakets gruen)
+
+dotnet run --project src/miEUDIverifier (Default-Backend https://verifier-backend.eudiw.dev):
+  - HTTP : http://localhost:5050
+  - "Initializing transaction at https://verifier-backend.eudiw.dev/ui/presentations"
+  - "Transaction initialized. ID: GnBfYJyE1xDoi4BcjpocBo_-K-KA-R5ogtbMMNmHD6wRb4iRqapkf-7RutRmRIb2Sxes00A6NEFEnjpN7rzUIQ"
+  - Polling /ui/presentations/{id} am Remote-Backend liefert 400, bis Timeout (kein Wallet im Test).
+
+Architektur-Befund (kein Signatur-/Verifikationscode im Repo):
+  - miEUDIverifier baut NUR die DCQL-Query und sendet POST /ui/presentations an ein
+    externes "EUDI Verifier Backend" (EU-Referenz, Kotlin). Das signed Request Object
+    (JAR) erzeugt und den vp_token validiert DAS BACKEND, nicht der Kandidat.
+  - Local operation (docker-compose.yml) startet ebenfalls
+    ghcr.io/eu-digital-identity-wallet/eudi-srv-verifier-endpoint:latest mit
+    SPRING_PROFILES_ACTIVE="self-signed" und offener VERIFIER_ATTESTATIONCLASSIFICATIONS
+    (= alle Issuer akzeptiert, keine echte Vertrauensliste).
+  - ExtractFromSdJwtString liest SD-JWT-Claims aus, OHNE kryptografische Pruefung.

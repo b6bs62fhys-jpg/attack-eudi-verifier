@@ -1,0 +1,57 @@
+groups:
+  - name: attack-verifier
+    rules:
+      - alert: AttackHttpErrorRateHigh
+        expr: >-
+          sum by (route) (rate(attack_http_request_errors_total[5m]))
+          /
+          clamp_min(sum by (route) (rate(attack_http_requests_total[5m])), 1)
+          > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: attack-verifier
+        annotations:
+          summary: "High HTTP error rate on {{ $labels.route }}"
+          description: "More than 5% of requests on {{ $labels.route }} have returned an error for 10 minutes."
+
+      - alert: AttackOcspCacheHitRateLow
+        expr: >-
+          (
+            sum(rate(attack_ocsp_cache_hits_total[10m]))
+            /
+            clamp_min(
+              sum(rate(attack_ocsp_cache_hits_total[10m]))
+              + sum(rate(attack_ocsp_cache_misses_total[10m])),
+              0.001
+            )
+          ) < 0.80
+          and
+          sum(rate(attack_ocsp_cache_hits_total[10m]) + rate(attack_ocsp_cache_misses_total[10m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+          service: attack-verifier
+        annotations:
+          summary: "OCSP cache hit rate is low"
+          description: "The OCSP cache hit rate has stayed below 80% for 15 minutes."
+
+      - alert: AttackOnboardingRejectionRateHigh
+        expr: sum(rate(attack_onboarding_rejections_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+          service: attack-verifier
+        annotations:
+          summary: "Onboarding gate rejection rate is unusually high"
+          description: "The onboarding gate is rejecting more than 6 requests per minute for 10 minutes."
+
+      - alert: AttackMetricsEndpointDown
+        expr: up{job="attack-verifier"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: attack-verifier
+        annotations:
+          summary: "Attack verifier scrape is down"
+          description: "Prometheus cannot scrape the Attack verifier metrics endpoint. Check /live and /ready."
