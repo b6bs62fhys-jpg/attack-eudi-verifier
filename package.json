@@ -2,7 +2,7 @@
   "name": "attack",
   "version": "0.1.0",
   "private": true,
-  "description": "Gehosteter EUDI Wallet Verifier für den deutschen Mittelstand – Basisentscheidung auf @openeudi/openid4vp. Prototyp, nicht für den Produktivbetrieb.",
+  "description": "Verifier API for the EU Digital Identity Wallet: OpenID4VP, DCQL, SD-JWT VC. Prototype, not for production use.",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
@@ -12,13 +12,11 @@
     "test:coverage": "vitest run --coverage",
     "loadtest": "node --experimental-strip-types tools/loadtest-main-api.ts",
     "test:flake": "node tools/flake-watch.mjs",
-    "site:url": "node tools/site-url.mjs",
-    "site:url:check": "node tools/site-url.mjs --check",
     "cli": "node --experimental-strip-types src/cli/main.ts",
     "lint": "eslint . --max-warnings 0",
     "demo": "ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true NODE_ENV=development node --experimental-strip-types src/demo/flow-main.ts",
     "demo:flow": "npm run demo",
-    "demo:cli": "node --experimental-strip-types src/demo/demo.ts",
+    "demo:cli": "ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true NODE_ENV=development node --experimental-strip-types src/demo/demo.ts",
     "service": "node --experimental-strip-types src/service/run.ts",
     "typecheck": "tsc --noEmit"
   },
