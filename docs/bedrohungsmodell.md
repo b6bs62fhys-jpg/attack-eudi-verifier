@@ -6,7 +6,7 @@ belegbar war, steht als **unbelegt** dabei.
 
 Der Ton ist ein technischer Prüfbericht. Dieses Dokument beschreibt, was der
 Code tut — nicht, ob er sicher ist. Es ist **keine** Sicherheitsprüfung; eine
-solche hat nicht stattgefunden (`docs/produktionsreife.md:76`).
+solche hat nicht stattgefunden ([interne Notiz, nicht veröffentlicht]).
 
 **Verwendete Abkürzungen:** STRIDE ist die übliche Bezeichnung für die sechs
 Bedrohungsklassen Spoofing, Tampering, Repudiation, Information Disclosure,
@@ -97,9 +97,9 @@ Absicherung, keine Behauptung.
 | S6 | **Denial of Service** | **Rate Limit umgehen** | Zwei getrennte Limiter: öffentliche Routen 120 je IP, mandantenpflichtige 60 je API-Schlüssel, Fenster 60 s — `src/config.ts:56-67`. Identität aus API-Schlüssel-Hash, sonst `remoteAddress`: `src/service/app.ts:158-160`. Überschreitung → 429 mit `retry-after`: `src/service/app.ts:162-170` | `src/service/rate-limit.test.ts:10` — „rejects at the limit and resets at the next window“; `:23` — „keeps distributed client identities independent“; `:31` — „protects the public direct_post endpoint and resets the window“ | **Hoch bei öffentlichen Routen.** Die Identität ist dort die IP-Adresse. Hinter einem gemeinsamen Proxy oder Mobilfunk-Gateway teilen sich viele Nutzer dieselbe IP; das Ratenlimit greift dann für alle gemeinsam. **Ob im Betrieb ein Proxy vorgesetzt wird, ist unbelegt** — das hängt an der Infrastruktur des Betreibers. |
 | S7 | **Information Disclosure / Elevation** | **Mandantentrennung verletzen**: Mandant A sieht Sitzung oder Ergebnis von Mandant B | Jeder Mandant bekommt einen eigenen Sitzungs- und Ergebnis-Speicher: `src/service/service.ts:272-281`. Mandantenrouten verlangen den API-Schlüssel: `src/service/app.ts:267, 303, 314`. Ein fremder Mandant erhält **404 statt 403**, damit die Existenz der Ressource nicht preisgegeben wird | `src/service/mandanten-matrix.test.ts` — Matrix über **alle** Routen aus `ROUTES`: „ohne Anmeldung → 401“, „falscher Schlüssel → 401“, „fremder Mandant → 404, ununterscheidbar von ‚nie vorhanden'“ (Dateikopf Zeilen 1-10). Öffentliche Routen müssen ausdrücklich freigegeben sein, eine neue Route ohne Eintrag fällt auf (`:92`) | **Gering.** Die Trennung ist nicht nur über die Speicherstruktur belegt, sondern über eine Matrix geprüft, die jede Mandantenroute abdeckt und bei einer neuen Route ohne Eintrag auffällt. |
 | S8 | **Information Disclosure** | **Leck in der Antwort** — mehr Daten als angefordert | Antwort trägt nur angeforderte Claims: `src/service/service.ts:527`. Fehlercodes sind feste/documentationierte Zeichenketten statt Rohmeldungen: `src/service/limits.ts:82-90` | `src/service/praesentation-422-e2e.test.ts`, `src/service/fehlerbilder.test.ts:254-260` (`assertCleanError` prüft `DOCUMENTED` und verbotene Inhalte) | **Gering.** |
-| S9 | **Information Disclosure** | **Leck auf der Konsole** — die Prüfbibliothek schreibt eigene Warnungen | Zustandsloser Präfixfilter für die Ausgaben der Bibliothek: `src/lib/library-log-filter.ts:72`, installiert in `src/service/run.ts:25`. Der Filter wirkt **nur** auf `console.warn` und **nur**, wenn das erste Argument mit dem Präfix `[openid4vp]` beginnt | **Kein automatisierter Test vorhanden** — das sagt `docs/pruefmittel-ocsp-logfilter.sh` wörtlich in seinem Kopf: „Es gibt dafür keinen Test — deshalb dieses Werkzeug.“ Es gibt zusätzlich `src/lib/library-log-filter.test.ts` für den Filter selbst | **Mittel, und die Schwachstelle ist im Projekt bekannt.** Ändert ein Update der Bibliothek Präfix oder Kanal, wird der Filter **stillschweigend unwirksam** und Zertifikatsdaten landen wieder im Prozesslog (`docs/pruefmittel-ocsp-logfilter.sh:2-7`). Das Skript ist ausdrücklich als manuell nach jedem Update auszuführen vorgesehen — es ist **kein** CI-Job. Ob es nach dem letzten Update gelaufen ist, ist **unbelegt**. → Abschnitt 5, M1 |
-| S10 | **Information Disclosure** | **Leck im Audit-Log** | Das Audit-Log enthält keine personenbezogenen Angaben (`docs/produktionsreife.md:52`); Einträge tragen Mandant, Ereignis und Grund, `src/service/audit.ts:32-35` | `src/service/erweiterung.test.ts:273` prüft das Audit-Ereignis beim Replay | **Mittel.** Das Log liegt im **RAM** des Prozesses. Es ist damit nicht persistent — das schützt Daten, bedeutet aber auch, dass es bei einem Neustart verloren ist. **Ob das für den Nachweiszweck des Betreibers genügt, ist unbelegt.** |
-| S11 | **Denial of Service / Tampering** | **Ausfall der Sperrprüfung** — OCSP-Responder nicht erreichbar | Bounded soft fail: eine zuvor erfolgreich geprüfte Antwort darf höchstens 24 Stunden über ihr `nextUpdate` hinaus weiterverwendet werden. `src/onboarding/ocsp-revocation.ts:122`; Cache-Obergrenze ebenfalls 24 h, `:117` | `src/onboarding/ocsp-revocation.test.ts:575` — eigener Testblock „OCSP-Client: Option B — drei Zustaende und **Grenzfall 24 h**“, mit der Konstante `FRIST_24H` in `:576` und einem simulierten 503-Ausfall (`:578-590`) | **Bewusst und dokumentiert, dennoch das größte verbleibende Risiko.** Bis zu 24 Stunden kann ein **nachträglich gesperrtes** Zertifikat noch akzeptiert werden. Begründung in `docs/entscheidung-ocsp-fail-modus.md:90`. Die Frist ist eine Konstante, **keine Umgebungsvariable**. Ob die Spezifikation dafür eine Zahl vorgibt, ist in `docs/entscheidung-gnadenfrist.md` als offene Frage geführt. |
+| S9 | **Information Disclosure** | **Leck auf der Konsole** — die Prüfbibliothek schreibt eigene Warnungen | Zustandsloser Präfixfilter für die Ausgaben der Bibliothek: `src/lib/library-log-filter.ts:72`, installiert in `src/service/run.ts:25`. Der Filter wirkt **nur** auf `console.warn` und **nur**, wenn das erste Argument mit dem Präfix `[openid4vp]` beginnt | **Kein automatisierter Test vorhanden** — das sagt [interne Notiz, nicht veröffentlicht] wörtlich in seinem Kopf: „Es gibt dafür keinen Test — deshalb dieses Werkzeug.“ Es gibt zusätzlich `src/lib/library-log-filter.test.ts` für den Filter selbst | **Mittel, und die Schwachstelle ist im Projekt bekannt.** Ändert ein Update der Bibliothek Präfix oder Kanal, wird der Filter **stillschweigend unwirksam** und Zertifikatsdaten landen wieder im Prozesslog ([interne Notiz, nicht veröffentlicht]). Das Skript ist ausdrücklich als manuell nach jedem Update auszuführen vorgesehen — es ist **kein** CI-Job. Ob es nach dem letzten Update gelaufen ist, ist **unbelegt**. → Abschnitt 5, M1 |
+| S10 | **Information Disclosure** | **Leck im Audit-Log** | Das Audit-Log enthält keine personenbezogenen Angaben ([interne Notiz, nicht veröffentlicht]); Einträge tragen Mandant, Ereignis und Grund, `src/service/audit.ts:32-35` | `src/service/erweiterung.test.ts:273` prüft das Audit-Ereignis beim Replay | **Mittel.** Das Log liegt im **RAM** des Prozesses. Es ist damit nicht persistent — das schützt Daten, bedeutet aber auch, dass es bei einem Neustart verloren ist. **Ob das für den Nachweiszweck des Betreibers genügt, ist unbelegt.** |
+| S11 | **Denial of Service / Tampering** | **Ausfall der Sperrprüfung** — OCSP-Responder nicht erreichbar | Bounded soft fail: eine zuvor erfolgreich geprüfte Antwort darf höchstens 24 Stunden über ihr `nextUpdate` hinaus weiterverwendet werden. `src/onboarding/ocsp-revocation.ts:122`; Cache-Obergrenze ebenfalls 24 h, `:117` | `src/onboarding/ocsp-revocation.test.ts:575` — eigener Testblock „OCSP-Client: Option B — drei Zustaende und **Grenzfall 24 h**“, mit der Konstante `FRIST_24H` in `:576` und einem simulierten 503-Ausfall (`:578-590`) | **Bewusst und dokumentiert, dennoch das größte verbleibende Risiko.** Bis zu 24 Stunden kann ein **nachträglich gesperrtes** Zertifikat noch akzeptiert werden. Begründung in [interne Notiz, nicht veröffentlicht]. Die Frist ist eine Konstante, **keine Umgebungsvariable**. Ob die Spezifikation dafür eine Zahl vorgibt, ist in [interne Notiz, nicht veröffentlicht] als offene Frage geführt. |
 | S12 | **Elevation of Privilege** | **Testschlüssel-Code im Produktionsimage** nutzen, um eine echte Identität vorzutäuschen | Beide Dateien sind bewusst enthalten und im Dockerfile begründet: `Dockerfile:43-52`, `Dockerfile:72` und `:92`. Der Rückfallpfad hängt am Entwicklungsschalter `ATTACK_DEV_MODE`, der in Produktion gesperrt ist (`src/config.ts:121-126`); der Bootstrap meldet über `usedTestIdentity` und `usedTestAnchor`, ob Testmaterial verwendet wurde | `src/service/produktionsschalter.test.ts:107-108` — über eine Kombinationsmatrix: `assert.equal(boot.usedTestIdentity, !c.keys)` und `assert.equal(boot.usedTestAnchor, !c.keys, 'TEST-Anker nur ohne konfigurierte Anker (und nur mit Entwicklungsschalter)')` | **Mittel.** Der Pfad ist an den gesperrten Entwicklungsschalter gebunden, und die Matrix prüft, dass Testanker **nur** ohne konfigurierte Anker und **nur** mit Entwicklungsschalter gesetzt werden. Offen bleibt: der Fall „Produktion, keine echte Identität, kein Schalter“ führt zum Startabbruch, **statt** Testmaterial zu erzeugen — das ist durch `produktionsschalter.test.ts:188` („Produktion ohne echte Identität -> Exit 1“) belegt. **Unbelegt bleibt**, ob `mock-wallet.ts` im Produktionsimage auch dann erreichbar ist, wenn ein Angreifer den Schalter selbst setzen kann — dafür gibt es keinen Test. |
 | S13 | **Elevation of Privilege** | **Entwicklungsschalter in Produktion** missbrauchen | Drei Regeln, alle mit Startabbruch: `NODE_ENV=production` mit `ATTACK_DEV_MODE=true` → Abbruch (`src/config.ts:121-126`); `ATTACK_ALLOW_SELF_SIGNED=true` in Produktion → Abbruch (`src/config.ts:128-134`); selbstsigniert ohne Entwicklungsschalter → Abbruch (`src/config.ts:138-143`) | `src/service/produktionsschalter.test.ts:191` — „Produktion mit Entwicklungsschalter -> Exit 1“; `:194` — „Produktion mit selbstsigniert -> Exit 1“ | **Gering für die Schalter selbst.** **Aber:** die Sicherung hängt an `NODE_ENV`, also an einer **Umgebungsvariable des Betreibers**. Setzt der Betreiber sie falsch, greift keine der drei Regeln. Ob zusätzlich eine organisatorische Kontrolle existiert, ist **unbelegt**. |
 | S14 | **Elevation of Privilege** | **Aussteller-Anker fehlen** und der Dienst läuft trotzdem | Start bricht ab: `src/service/issuer-anchors.ts:28, 32, 38`; fehlen sie zur Laufzeit, wird die Präsentation abgelehnt statt angenommen (`src/service/service.ts:465-466`) | `src/service/produktionsschalter.test.ts:188` — „Produktion ohne echte Identität -> Exit 1, klare Meldung“. Laufzeitfall: `src/service/aussteller-anker.test.ts:212` — „leere Liste -> abgelehnt (issuer_trust_anchors_empty), **Sitzung nicht verbraucht**“; `:229` prüft, dass die Anker **nur** mit Onboarding-Material genutzt werden | **Gering.** Beide Fälle — fehlend beim Start und leer zur Laufzeit — sind geprüft. Der zweite Test prüft zusätzlich, dass eine abgelehnte Sitzung **nicht** verbraucht wird. |
@@ -135,7 +135,7 @@ Modells.
   zu konfigurieren. **Ob der Betreiber einen solchen Proxy betreibt, ist
   unbelegt** — es gibt im Repository keinen Nachweis dafür.
 - **Kein Penetrationstest.** Es hat keiner stattgefunden.
-  `docs/produktionsreife.md:76` führt „Externes Security-Review" als nicht
+  [interne Notiz, nicht veröffentlicht] führt „Externes Security-Review" als nicht
   erfüllt; `docs/sicherheit.md:21` sagt es wörtlich.
 - **Keine externe Prüfung** dieser Codebasis und **kein** Audit der
   Prüfbibliothek `@openeudi/openid4vp` (ebenda).
@@ -150,10 +150,10 @@ Modells.
 - **Onboarding-Gate.** Im strengen Produktionsbetrieb meldet `/ready`
   `onboarding: failed`, solange kein Gate-Material vorliegt
   (`src/service/run.ts:47`). Das Verhalten ist dokumentiert, die
-  Gate-Logik selbst **nicht** Teil dieses Modells (`docs/entscheidung-gnadenfrist.md`).
+  Gate-Logik selbst **nicht** Teil dieses Modells ([interne Notiz, nicht veröffentlicht]).
 - **Nicht betrachtet:** die 24-Stunden-Gnadenfrist für die **Gate**-Kette (B4)
   — dafür fehlen bis heute acht Antworten auf Fragen zu den echten
-  Zertifikatsprofilen (`docs/entscheidung-gnadenfrist.md` Abschnitt 6).
+  Zertifikatsprofilen ([interne Notiz, nicht veröffentlicht] Abschnitt 6).
 
 ## 5. Nicht gefundene Gegenmaßnahmen
 
@@ -180,19 +180,19 @@ $ grep -cE "^    name: " .github/workflows/ci.yml
   12
 
 $ git grep -n "pruefmittel-ocsp-logfilter" -- .
-  docs/pruefmittel-ocsp-logfilter.sh:11
+  [interne Notiz, nicht veröffentlicht]
   docs/sicherheit.md:211
   docs/sicherheit.md:296
-  docs/gesamtstatus-2026-09-25.md:96   (und weitere)
+  [interne Notiz, nicht veröffentlicht]   (und weitere)
 ```
 
 Alle Treffer außer dem Skript selbst sind **Dokumentationsverweise** — im
 Workflow wird das Skript nirgends aufgerufen. Das Projekt weiß das selbst;
-`docs/pruefmittel-ocsp-logfilter.sh:6-7` sagt wörtlich:
+[interne Notiz, nicht veröffentlicht] sagt wörtlich:
 
 > „Es gibt dafür keinen Test — deshalb dieses Werkzeug.“
 
-und `docs/gesamtstatus-2026-09-25.md:96` führt die Gegenmaßnahme als
+und [interne Notiz, nicht veröffentlicht] führt die Gegenmaßnahme als
 „**intern, überwacht**“ mit dem Zusatz „**Kein Test bricht darauf**“.
 
 **Was fehlt:** ein Test, der das Präfix gegen die installierte Bibliothek prüft,
@@ -240,7 +240,7 @@ auf die ich mich berufen könnte.
 
 **Ursprünglicher Befund:** Es gab Tests, die prüften, **ob** ein Ereignis
 geschrieben wird, aber keinen, der prüfte, **was** darin steht. Die Aussage
-„ohne PII“ in `docs/produktionsreife.md` war nicht automatisiert abgesichert.
+„ohne PII“ in [interne Notiz, nicht veröffentlicht] war nicht automatisiert abgesichert.
 
 **Abhilfe:** `src/service/audit-inhalt.test.ts` legt den Markerwert
 `MARKER-PII-4c2e91` als Claim-Wert in die Präsentation und prüft, dass er in

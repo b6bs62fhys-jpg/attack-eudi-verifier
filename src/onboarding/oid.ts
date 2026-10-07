@@ -39,7 +39,7 @@ export const ENTITLEMENTS_NS = 'https://uri.etsi.org/19475/Entitlement/';
  * **Keine Berechtigungsquelle.** Die Tabelle löst OIDs zu *Namen* auf. Welche
  * Entitlements ein WRP tatsächlich hält, steht laut ETSI TS 119 475 V1.2.1
  * (2026-03), Klausel 4.2 im WRPRC und im nationalen Register — nicht in diesem
- * Code. Siehe `docs/entitlement-recherche.md`, Abschnitte 4 und 5.
+ * Code. Siehe [interne Notiz, nicht veröffentlicht], Abschnitte 4 und 5.
  */
 export const NORMATIVE_ENTITLEMENTS: readonly {
   readonly oid: string;

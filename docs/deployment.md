@@ -88,7 +88,7 @@ a reverse proxy that owns TLS and therefore also owns the transport-level
 headers. The service sets `x-content-type-options: nosniff`, `cache-control:
 no-store` and `x-frame-options: deny` on every response, because those are
 application-level and hold regardless of the proxy
-(`docs/security-headers-audit-2026-09-27.md`).
+(an internal note (not published)).
 
 The reverse proxy must add:
 
@@ -121,7 +121,7 @@ loads identity and anchors at startup.
 
 Verified on 28.09.2026 against the built image: the service starts in production
 configuration **without** `ATTACK_DEV_MODE`. Full log and evidence in
-`docs/release-pruefung.md`, section 5.1.
+an internal note (not published), section 5.1.
 
 Three variables are required. Derived from `src/config.ts` and enforced in
 `src/service/verifier-identity.ts` and `src/service/issuer-anchors.ts`:
@@ -226,7 +226,7 @@ Maven Central or to a private registry is a release decision and has not been
 taken: the target registry, and the `group` coordinate it would carry, both wait
 on the naming decision. A failure of this step now means the plugin was removed
 or the build broke — that is the intended signal. See
-`docs/release-pruefung.md`, section 3.
+an internal note (not published), section 3.
 
 **The SBOM covers npm only.** npm generates CycloneDX natively, so no additional
 dependency is needed. Python would need `cyclonedx-bom` and Kotlin a Gradle
@@ -236,8 +236,7 @@ coverage than exists.
 
 **The root package cannot be published and does not need to be.** It is
 `"private": true` — it is a service, not a library. Note that `npm pack` still
-succeeds and reports 5840 files including `.git`, `src/` and the `test/eudi-verify`
-submodule. That is expected: `pack` and `publish` differ, and `private` blocks
+succeeds and lists the whole working tree including `src/`. That is expected: `pack` and `publish` differ, and `private` blocks
 publication. For SBOM purposes the job therefore uses `--sbom-type application`.
 
 ### Local run

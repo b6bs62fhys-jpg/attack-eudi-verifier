@@ -506,7 +506,7 @@ export class VerifierService {
           trustStore: new StaticTrustStore([...trustedAnchors]),
           // 'prefer' und nicht 'require': die verbindliche Sperrprüfung ist der
           // eigene OcspRevocationChecker (siehe enforceIssuerChainRevocation,
-          // weiter unten). Er darf nach docs/entscheidung-ocsp-fail-modus.md
+          // weiter unten). Er darf nach [interne Notiz, nicht veröffentlicht]
           // (Option B) eine veraltete, verifizierte `good`-Antwort bis 24 h
           // weiterverwenden. Die Bibliothek läuft als zweite, unabhaengige
           // Instanz: sie kann durch `revoked` nur ablehnen, nie annehmen, und

@@ -190,8 +190,7 @@ Handle errors by category, not by localized message text:
 ### Migration: 401 to 422 for rejected wallet responses
 
 Until 27.09.2026 `/direct_post` answered **401** for every **rejected** wallet
-response, including `unknown_state`. That was a breaking change for integrators
-and is listed as such in `CHANGELOG.md`.
+response, including `unknown_state`. That was a breaking change for integrators.
 
 That migration only covers the cases where the service could **not process** the
 presentation (`ok: false`, 422 today). Presentations that were processed and

@@ -101,7 +101,7 @@ export async function bootstrapService(
   if (credentialStatus === NO_CREDENTIAL_STATUS) warn('!!! Credential-Statusprüfung ist ABGESCHALTET (ATTACK_DEV_MODE aktiv). !!!');
 
   // Sperrprüfung der Aussteller-Zertifikatskette über OCSP (fail closed, mit
-  // der freigegebenen Gnadenfrist aus docs/entscheidung-ocsp-fail-modus.md:
+  // der freigegebenen Gnadenfrist aus [interne Notiz, nicht veröffentlicht]:
   // Option B, 24 Stunden). NO_REVOCATION nur mit Entwicklungsschalter.
   // Der Beobachter meldet dem Dienst, dass eine veraltete `good`-Antwort aus der
   // Gnadenfrist verwendet wurde. Der Dienst schreibt daraus ein Audit-Ereignis

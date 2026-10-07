@@ -51,7 +51,7 @@
  * gehört zur Instanz (kein modulweiter Zustand) und ist über `clearCache()`
  * leertbar (Schlüsselrotation, Tests).
  *
- * Fail-Mode (Entscheidung in docs/entscheidung-ocsp-fail-modus.md, Option B):
+ * Fail-Mode (Entscheidung in [interne Notiz, nicht veröffentlicht], Option B):
  * Der Standard ist strikt fail closed. Freigegeben und im Dienststart verwendet
  * ist `bounded-soft-fail`: Ist eine `good`-Antwort einmal erfolgreich und
  * vollständig verifiziert worden, darf sie bei Ausfall der Sperrquelle bis
@@ -117,7 +117,7 @@ export const DEFAULT_OCSP_MAX_BYTES = 64 * 1024;
 export const DEFAULT_OCSP_MAX_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 /**
  * Höchstalter einer veralteten `good`-Antwort im Modus `bounded-soft-fail`
- * (Option B aus docs/entscheidung-ocsp-fail-modus.md): 24 Stunden.
+ * (Option B aus [interne Notiz, nicht veröffentlicht]): 24 Stunden.
  */
 export const DEFAULT_OCSP_SOFT_FAIL_MAX_STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -153,7 +153,7 @@ const SIGNATURE_ALGORITHMS: Readonly<Record<string, SignatureAlgorithm>> = Objec
 
 /**
  * Meldung, wenn eine veraltete `good`-Antwort aus der Gnadenfrist verwendet
- * wurde (Zustand B aus `docs/entscheidung-ocsp-fail-modus.md`). Wird ohne
+ * wurde (Zustand B aus [interne Notiz, nicht veröffentlicht]). Wird ohne
  * Kenntnis von Zertifikatsdaten befüllt: nur Alter und Frist, kein Subject,
  * keine Seriennummer, keine Responder-Adresse.
  */

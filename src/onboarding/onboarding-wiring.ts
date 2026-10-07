@@ -15,8 +15,7 @@
  * Onboarding-Prüfung. Sobald echtes Material vorliegt, wird die spätere
  * Verdrahtung ein reiner Konfigurationsakt: `bootstrapService` ruft
  * `resolveOnboardingGate` auf, und es genügen die beiden Umgebungsvariablen
- * plus die Wahl der Sperrquelle (siehe `docs/entscheidung-onboarding-gate-
- * vorbereitung.md`, Frage B4).
+ * plus die Wahl der Sperrquelle (siehe [interne Notiz, nicht veröffentlicht], Frage B4).
  *
  * Warum fail closed beim *Material*, aber kein Startabbruch: Der Rest des
  * Systems bricht ab, wenn eine **Pflicht** fehlt (Sperrprüfung, Anker,
@@ -37,7 +36,7 @@
  * Sub-Entitlements aus `ATTACK_ENTITLEMENT_MAP_JSON`. Vorher war sie
  * außerhalb des Entwicklungsschalters leer, wodurch das Gate jedes WRPAC mit
  * einer Entitlement-OID mit `entitlement_unknown` abgelehnt hat. Siehe
- * `docs/entitlement-recherche.md`.
+ * [interne Notiz, nicht veröffentlicht].
  */
 import { readFile } from 'node:fs/promises';
 

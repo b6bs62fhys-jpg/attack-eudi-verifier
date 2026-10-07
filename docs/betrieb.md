@@ -63,7 +63,7 @@ dessen Meldung unverändert aus, bei jedem anderen Fehler nur
 `Start abgebrochen: unerwarteter Fehler beim Start (<Typ>).` — **ohne
 Stacktrace und ohne Schlüsselinhalt**. Fünf Stellen werfen noch einen einfachen
 `Error` statt eines `ConfigError` und zeigen deshalb die generische Meldung;
-siehe `docs/offene-entscheidungen.md`, Punkt 14.
+siehe [interne Notiz, nicht veröffentlicht], Punkt 14.
 
 ### Entwicklung
 
@@ -178,7 +178,7 @@ wird hier als Lücke benannt statt ergänzt.
 2. Fehlt nur eine der beiden Verifier-Variablen, nennt die Meldung sie beim
    Namen. Das ist das Verhalten aus Paket F.
 3. Bleibt die Meldung `unerwarteter Fehler beim Start (Error).`, liegt einer der
-   in `docs/offene-entscheidungen.md`, Punkt 14, genannten Fälle vor: unlesbare
+   in [interne Notiz, nicht veröffentlicht], Punkt 14, genannten Fälle vor: unlesbare
    oder unbrauchbare PEM-Datei. Der Fehlertext wird bewusst nicht ausgegeben.
 
 ### `/ready` meldet 503
@@ -203,13 +203,13 @@ prüfen lässt. Die dort genannte Testzahl ist der aktuelle Stand.
 ### Als Lücke benannt
 
 - **Kein Runbook für den Betrieb im Repository.** Es gibt Alarmierungsregeln
-  und Runbooks, aber `docs/monitoring.md` ist kein Betriebs-Handbuch. Wer den
+  und Runbooks, aber [interne Notiz, nicht veröffentlicht] ist kein Betriebs-Handbuch. Wer den
   Dienst betreibt, braucht eine Festlegung, wer bei `/ready` 503 alarmiert wird
   und welche Schwellen gelten. **Nicht belegt, offen.**
 - **Kein Logpfad festgelegt.** Der Dienst schreibt JSON-Zeilen auf STDOUT
-  (`docs/produktionsreife.md`, Abschnitt 5). Wohin die gehen, wie lange sie
+  ([interne Notiz, nicht veröffentlicht], Abschnitt 5). Wohin die gehen, wie lange sie
   bleiben und wer sie liest, ist nicht festgelegt. **Nicht belegt, offen.**
-- **Kein Restore oder Migration.** `docs/produktionsreife.md:37-45` hält fest,
+- **Kein Restore oder Migration.** [interne Notiz, nicht veröffentlicht] hält fest,
   dass es keinen persistenten Zustand gibt; das Ergebnis liegt im RAM und ist
   nach `ATTACK_RESULT_TTL_SECONDS` weg. Ein Wiederanlauf nach Datenverlust ist
   damit unkritisch, ein Verfahren dafür ist aber nicht beschrieben. **Offen.**

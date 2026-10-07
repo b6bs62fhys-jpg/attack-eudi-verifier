@@ -7,7 +7,7 @@
  * (exp &le; iat + 12 Monate) und Entitlement-Decision.
  *
  * WICHTIG: Im Prototyp wird nur die JWT-Form unterstützt („JWT **oder** CWT“).
- * CWT/COSE_Sign1 ist als bewusste Lücke dokumentiert (docs/erweiterung-status.md).
+ * CWT/COSE_Sign1 ist als bewusste Lücke dokumentiert ([interne Notiz, nicht veröffentlicht]).
  */
 import { compactVerify, decodeProtectedHeader } from 'jose';
 import { X509Certificate, X509ChainBuilder } from '@peculiar/x509';

@@ -7,7 +7,7 @@
  * Mock-HTTP-Server ausgeliefert. Die Produktionsform (ETSI TS 119 612 XML
  * mit XML-DSig / LoTE nach ETSI TS 119 602) wird über die Schnittstelle
  * `TrustListSignatureVerifier` angeschlossen, aber im Prototyp nicht
- * nachgebaut (siehe docs/erweiterung-status.md).
+ * nachgebaut (siehe [interne Notiz, nicht veröffentlicht]).
  */
 export interface TrustListEntry {
   /** Bezeichner des Trust-Service-Anbieters (Kurzname, keine PII). */

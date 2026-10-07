@@ -5,9 +5,9 @@ Aussteller-Zertifikatskette vorgelegter Credentials wird jetzt per OCSP
 (RFC 6960) geprüft; der Platzhalter `revocationPolicy: 'skip'` ist entfernt.
 Belege, Abgrenzung zu CRL und Token Status List sowie die freigegebene
 Gnadenfrist von 24 Stunden stehen in Abschnitt 5a und in
-`docs/entscheidung-ocsp-fail-modus.md`.
+[interne Notiz, nicht veröffentlicht].
 
-**Historischer Stand 22.09.2026 für Branch `phase1`.** Für den aktuellen Stand `vereinigung-2026-09-25` gelten `docs/konformitaet.md`, `docs/offene-fragen-vereinigung.md` und `docs/vereinigung-abschlussbericht.md`; insbesondere sind die dort genannten JWE-, DCQL- und Flow-Erweiterungen nicht in diesem historischen Bericht enthalten.
+**Historischer Stand 22.09.2026 für Branch `phase1`.** Für den aktuellen Stand `vereinigung-2026-09-25` gelten `docs/konformitaet.md`, [interne Notiz, nicht veröffentlicht] und [interner Bericht, nicht veröffentlicht]; insbesondere sind die dort genannten JWE-, DCQL- und Flow-Erweiterungen nicht in diesem historischen Bericht enthalten.
 
 Stand: 22.09.2026 · Umfang: Schritt 4 des Auftrags (Prototyp, Branch `phase1`).
 
@@ -57,15 +57,15 @@ Wichtige transitive Pakete mit Lizenzen: `asn1js`/`bytestreamjs`/`pkijs`/`js-bas
 
 1. **Prototyp-Architektur**: Alle Zustände (Sitzungen, Ergebnisse, Mandanten, Audit-Log) liegen nur im Arbeitsspeicher. Neustart löscht alles. Für jede gehostete Umsetzung (Stufe 2 des Plans) sind Persistenz, Backup und Ablaufprozesse neu zu entwerfen.
 2. **TLS/Deployment**: Der Dienst läuft roh über HTTP auf 127.0.0.1. Keine TLS-Terminierung, kein Reverse-Proxy, kein Container, keine Betriebskonfiguration.
-3. **`direct_post`-Interop (Teil 1, jetzt verringert)**: Der Dienst akzeptiert zusätzlich zu `application/json` auch `application/x-www-form-urlencoded` (Envelope-Felder `vp_token`/`state`; `vp_token` als JSON-Objekt, JSON-Array oder roher SD-JWT-String — Roh-Werte werden in den DCQL-Envelope gewickelt, siehe `src/service/app.ts`) und JWE-verschlüsselte Antworten (`response=<JWE>` form- oder `{"response":"…"}` JSON). Die Entschlüsselung läuft über `decryptAuthorizationResponse` der Bibliothek; die Prüfung verschlüsselter Antworten ist nur mit `encryptionKey` aktiv, sonst bleibt der Altpfad intakt. **Offen bleibt**: Interop mit einer echten Sandbox-Wallet ist mangels Sandbox-Zugang nicht geprüft (siehe docs/offen.md).
-4. **Verifier-Identität**: Request Objects werden mit selbstsignierten TEST-Zertifikaten signiert (`allowSelfSignedCertificate: true`). Profilkonforme Wallets (HAIP 1.0) würden diese Verifier-Identität ohne gültiges Zugriffs- und Registrierungszertifikat ablehnen. Der Live-Durchlauf hängt damit am Registry-/Zertifikatsthema (PLAN.md; Registrar ausstehend).
+3. **`direct_post`-Interop (Teil 1, jetzt verringert)**: Der Dienst akzeptiert zusätzlich zu `application/json` auch `application/x-www-form-urlencoded` (Envelope-Felder `vp_token`/`state`; `vp_token` als JSON-Objekt, JSON-Array oder roher SD-JWT-String — Roh-Werte werden in den DCQL-Envelope gewickelt, siehe `src/service/app.ts`) und JWE-verschlüsselte Antworten (`response=<JWE>` form- oder `{"response":"…"}` JSON). Die Entschlüsselung läuft über `decryptAuthorizationResponse` der Bibliothek; die Prüfung verschlüsselter Antworten ist nur mit `encryptionKey` aktiv, sonst bleibt der Altpfad intakt. **Offen bleibt**: Interop mit einer echten Sandbox-Wallet ist mangels Sandbox-Zugang nicht geprüft (siehe [interne Notiz, nicht veröffentlicht]).
+4. **Verifier-Identität**: Request Objects werden mit selbstsignierten TEST-Zertifikaten signiert (`allowSelfSignedCertificate: true`). Profilkonforme Wallets (HAIP 1.0) würden diese Verifier-Identität ohne gültiges Zugriffs- und Registrierungszertifikat ablehnen. Der Live-Durchlauf hängt damit am Registry-/Zertifikatsthema (Registrar ausstehend).
 5. **Trust-Pfad und Sperrprüfung**: **Stand ocsp-sperrpruefung-2026-09-25**: Issuer-Zertifikate der vorgelegten Credentials werden per OCSP (RFC 6960) geprüft (`src/onboarding/ocsp-revocation.ts`, verdrahtet in `src/service/bootstrap.ts:80-88`); die Bibliothek läuft nur noch mit `revocationPolicy: 'prefer'` als Zweitinstanz (`src/service/service.ts:493`). Details, Abgrenzung und bekannte Nachteile: Abschnitt 5a. **Stand Haertung 1 (2026-09-25)**: Die Sperrprüfung für WRPAC/WRPRC ist Pflicht und fail closed (`src/onboarding/revocation.ts`, `enforceRevocation`); `NO_REVOCATION` ist nur mit `ATTACK_DEV_MODE=true` außerhalb von Produktion zulässig. Echte Quelle dort: `CrlRevocationChecker` (CRL nach RFC 5280). Credentials werden über eine Token Status List geprüft (`src/service/credential-status.ts`). Fehlercodes: `docs/fehlercodes.md`.
    **Weiterhin offen (ehrlich)**: (a) `CrlRevocationChecker` ist implementiert und getestet, aber im Dienststart nicht verdrahtet — das Onboarding-Gate ist standardmäßig nicht aktiv, die WRPAC/WRPRC-Sperrprüfung greift also erst, wenn ein Gate konfiguriert wird. (b) Für OCSP gibt es noch keinen Nachweis gegen einen echten produktiven Responder, alle Tests laufen gegen einen lokalen Mock. (c) Die Bibliothek schreibt bei OCSP-Fehlern Zertifikat-Subjects nach `console.warn`; das ist nicht abstellbar und in Abschnitt 5a als Nachteil festgehalten. (d) Es gibt keine CRL-Anbindung an den Issuer-Pfad; der Bibliothekspfad bietet sie, sie ist aber nicht der entscheidende Mechanismus.
 6. **Keine Schutzmechanismen des Betriebs**: kein Rate-Limiting, keine CSRF/Token-Härtung für die Demo-Seite, keine separaten Prozessrechte, keine Secret-Verwaltung (KMS/HSM). Zugriffs- und Registrierungszertifikate sind bisher nur Platzhalter.
 7. **`mso_mdoc`-Pfad fehlt**: Es wird ausschließlich der SD-JWT-VC-Pfad (Falster A) unterstützt. mdoc (Plan-Stufe 2) ist nicht umgesetzt.
 8. **Transitive Deprecations**: `@sd-jwt/decode@0.19.0`, `@sd-jwt/types@0.19.0`, `@sd-jwt/utils@0.19.0` (als Abhängigkeit von `@openeudi/openid4vp`) sind als deprecated markiert (Merge zu `@sd-jwt/core` ≥ 0.20.0 mit Security-Hinweis GHSA-f9j6-8p6x-r9j6). Der Prototyp nutzt die Bibliothek, nicht `@sd-jwt/*` direkt; beim Wechsel auf eine neuere `@openeudi/*`-Version sollte die Deprecation mit verfolgt werden.
 9. **Zweit-Journal `xadesjs`/`xmldsigjs`/`@xmldom/xmldom`**: XML-Signatur-Bibliotheken (LOTL-Verarbeitung der Bibliothek) sind Altlasten-Komponenten mit teils älteren Pfaden; hier nicht aktiv genutzt. Ohne Audit-Befund (npm audit: 0).
-10. **Kein externes Audit / keine OIDF-CI-Replay im Repo**: Der Weg über die offizielle OIDF-Konformitätssuite der Bibliothek ist geprüft laut deren CI (docs/verifier_vergleich.md), aber nicht im eigenen Repo wiederholt. Ein eigener Replay-Lauf wäre eine Option für später (offen).
+10. **Kein externes Audit / keine OIDF-CI-Replay im Repo**: Der Weg über die offizielle OIDF-Konformitätssuite der Bibliothek ist geprüft laut deren CI ([interne Notiz, nicht veröffentlicht]), aber nicht im eigenen Repo wiederholt. Ein eigener Replay-Lauf wäre eine Option für später (offen).
 
 ## 5a. Sperrprüfung: welcher Mechanismus wofür (Stand 2026-09-25)
 
@@ -205,10 +205,10 @@ nicht mehr, und Subject, Responder-URL und Seriennummer landen wieder im
 Prozesslog. Niemand bemerkt das ohne Nachsehen, weil kein Test die Bibliothek
 liest.
 
-**Deshalb: nach jedem Update von `@openeudi/openid4vp` ausführen.**
+**Deshalb: nach jedem Update von `@openeudi/openid4vp` den Abgleich wiederholen.**
 
 ```bash
-zsh docs/pruefmittel-ocsp-logfilter.sh
+# Das Prüfskript ist nicht Teil der öffentlichen Kopie.
 ```
 
 Das Werkzeug liest das Präfix aus dem Filter selbst, listet alle
@@ -221,7 +221,7 @@ und Exit-Code:
 | `1` | Abweichung: N Ausgaben ohne Präfix | Präfix anpassen oder Meldung einzeln bewerten (enthält sie Zertifikatsdaten?) |
 | `2` | Werkzeugfehler (Datei fehlt) | Dependencies installieren |
 
-Aktueller Stand (Commit siehe `docs/gesamtstatus-2026-09-25.md`, B11):
+Aktueller Stand (Commit siehe [interne Notiz, nicht veröffentlicht], B11):
 6 Ausgaben, alle mit Präfix, 0 Abweichungen.
 
 Das Werkzeug benutzt bewusst `grep -F` und nicht `grep -E`: mit `-E` wäre
@@ -264,7 +264,7 @@ Befund — siehe den Abschnitt zur Zweitprüfung weiter oben.
 ### Gnadenfrist: was genau gilt
 
 Die freigegebene Entscheidung (Option B) steht in
-`docs/entscheidung-ocsp-fail-modus.md`. Kurzfassung, jeweils mit Testbeleg in
+[interne Notiz, nicht veröffentlicht]. Kurzfassung, jeweils mit Testbeleg in
 `src/onboarding/ocsp-revocation.test.ts`:
 
 | Situation | Ergebnis | Test |
@@ -293,6 +293,5 @@ npm audit                     # 0 Schwachstellen
 git ls-files | grep -E 'node_modules|\.env|\.pem|\.key|secret'   # keine Treffer
 npm ls --all                  # Abhängigkeitsbaum (siehe Abschnitt 4)
 npm test                      # 695 Tests in 47 Dateien grün
-zsh docs/pruefmittel-ocsp-logfilter.sh   # Logfilter deckt alle Bibliotheks-Ausgaben ab (B11)
 npm run typecheck             # fehlerfrei
 ```

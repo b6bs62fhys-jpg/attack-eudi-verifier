@@ -4,10 +4,7 @@ Stand: `main` commit `98998bb`, 29.09.2026. Jede Zeile nennt Datei und Zeile sow
 den zugehörigen Test. Was nicht im Code belegt ist, steht als **nicht
 implementiert** oder **unbelegt**, nicht als „geplant".
 
-> **Produktname: `Attack`.** Das ist ein Arbeitsname. Er steht in diesem
-> Dokument bewusst nur hier, damit `tools/rename.mjs` ihn später an allen
-> Stellen ersetzen kann. Die Namensentscheidung selbst ist offen
-> (`docs/offene-entscheidungen.md`, Punkt 2).
+> **Produktname: `Attack`.** Das ist ein Arbeitsname. Die Namensentscheidung ist offen.
 
 Dieses Dokument beschreibt den Stand des Repositorys. Es ist **kein
 Konformitätsnachweis** und **kein Nachweis einer durchgeführten
@@ -30,7 +27,7 @@ Interoperabilitätsprüfung**. Ein solcher Nachweis liegt nicht vor
 | HAIP | teilweise | Query-Aufbau über `buildHaipQuery` (`src/service/service.ts:369`); `validateHaipQuery` in `src/service/limits.ts:88` | `src/decision-test/decision.test.ts`; `docs/eidas-arf-konformitaet.md` führt die Profile als „Teilweise erfüllt" |
 | SD-JWT VC | implementiert | Formatangabe `dc+sd-jwt` in `src/service/service.ts:369`; Validierung `src/service/service.ts:530-560` | `src/decision-test/sd-jwt-nachweis.test.ts` |
 | mdoc (mso_mdoc) | **nicht implementiert** | Kein Treffer im Produktivcode. Die Suche nach `mdoc` findet in `src/cli/main.ts:276, 383, 399` nur die Zeichenkette in `cmdOcsp`, also die OCSP-Abfrage, kein mdoc. | **kein Test** |
-| Credential Sets (Disjuktion) | **nicht implementiert** | Die installierte Version 0.11.1 kennt `buildCredentialSetQuery` nicht; das wurde für die Version 0.12.0 geprüft und in `docs/bericht-paket-h.md` festgehalten. | **kein Test** |
+| Credential Sets (Disjuktion) | **nicht implementiert** | Die installierte Version 0.11.1 kennt `buildCredentialSetQuery` nicht; das wurde für die Version 0.12.0 geprüft und in [interner Bericht, nicht veröffentlicht] festgehalten. | **kein Test** |
 
 ## 2. Vertrauen und Sperrprüfung
 
@@ -42,7 +39,7 @@ Interoperabilitätsprüfung**. Ein solcher Nachweis liegt nicht vor
 | OCSP | implementiert | `src/onboarding/ocsp-revocation.ts`; Grenze für veraltete Antworten in `:117` und `:122` | `src/onboarding/ocsp-revocation.test.ts:240, 248, 575` |
 | CRL | implementiert | `src/onboarding/crl-revocation.ts` | `src/onboarding/revocation-fail-closed.test.ts` |
 | Token Status List | implementiert | `src/service/credential-status.ts`; Verdrahtung in `src/service/bootstrap.ts:100` | `src/service/credential-status.test.ts:302, 310, 317` |
-| LOTL (Liste der Trust Lists) | **nicht implementiert** | Kein Treffer in `src/`. Das Wort erscheint ausschließlich in Dokumenten (`docs/bericht-paket-h.md`, `docs/bericht.md`, `docs/erweiterung-status.md`, `docs/gesamtstatus-2026-09-25.md`, `docs/gesamtstatus-2026-09-26.md`), dort im Zusammenhang mit der geprüften Bibliotheksversion 0.12.0. | **kein Test** |
+| LOTL (Liste der Trust Lists) | **nicht implementiert** | Kein Treffer in `src/`. Das Wort erscheint ausschließlich in Dokumenten ([interner Bericht, nicht veröffentlicht], [interner Bericht, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht]), dort im Zusammenhang mit der geprüften Bibliotheksversion 0.12.0. | **kein Test** |
 | WRPAC und WRPRC | teilweise | `src/onboarding/wrpac.ts`, `src/onboarding/wrprc.ts`, Verdrahtung in `src/onboarding/onboarding-wiring.ts:79`; im strengen Produktionsbetrieb meldet `/ready` `onboarding: failed` (`src/service/run.ts:47`) | `src/onboarding/onboarding.test.ts`, `src/onboarding/onboarding-gate-hardening.test.ts` |
 | Registratur-Anbindung | **nicht implementiert** | `docs/fehlercodes.md:112` nennt den `RegistrarClient` als ungenutzt; `src/onboarding/registrar.ts` wird nicht verdrahtet | **kein Test** |
 
@@ -52,7 +49,7 @@ Wichtig für die Einordnung: Die drei Untermodule unter `test/` wurden **nicht**
 zum Test dieses Dienstes gegen eine Referenz-Wallet verwendet. Sie dienten der
 Bewertung **anderer** Implementierungen als Kandidaten für den Kern.
 
-Belege: `.gitmodules` (drei Einträge), `test/ERGEBNIS.md`, `docs/gitlinks-bestandsaufnahme.md`.
+Belege: `test/ERGEBNIS.md`. Die Untermodule selbst sind nicht Teil der öffentlichen Kopie dieses Repositorys.
 
 | Untermodul | wofür es laut Beleg verwendet wurde | geprüft | nicht geprüft |
 |---|---|---|---|
@@ -62,10 +59,7 @@ Belege: `.gitmodules` (drei Einträge), `test/ERGEBNIS.md`, `docs/gitlinks-besta
 
 **Belegte Evidenzdateien** laut `test/ERGEBNIS.md`:
 `test/waltid/evidence/waltid-run.txt` und `test/evidence/mieudi-verify.txt` liegen
-im Repository. Der Lauf von eudi-verify liegt im Untermodul `test/eudi-verify`,
-dort ungetrackt und im Hauptrepo nicht abrufbar. Eine unveränderte Kopie liegt
-unter `docs/belege/eudi-verify-run.txt`
-(SHA-256: `20baac5af5544704b679f8d69459e217445917470afff8434230d667669657ba`).
+im Repository. Der Lauf von eudi-verify ist in der öffentlichen Kopie nicht enthalten.
 Die Belege stammen aus lokalen Läufen gegen die Kandidaten, nicht gegen unseren
 Dienst.
 
@@ -132,7 +126,7 @@ im Repository belegt sind.
 |---|---|
 | mdoc / mso_mdoc | kein Treffer im Produktivcode, siehe Abschnitt 1 |
 | LOTL | kein Treffer in `src/`, nur Dokumentation, siehe Abschnitt 2 |
-| Credential Sets (Disjuktion über mehrere Nachweise) | Version 0.11.1 kennt die Funktion nicht, siehe `docs/bericht-paket-h.md` |
+| Credential Sets (Disjuktion über mehrere Nachweise) | Version 0.11.1 kennt die Funktion nicht, siehe [interner Bericht, nicht veröffentlicht] |
 | Registratur-Anbindung | `docs/fehlercodes.md:112` nennt den Client ungenutzt |
 
 ### 5.2 Teilweise implementiert
@@ -153,10 +147,8 @@ im Repository belegt sind.
 | Verfügbarkeit und horizontale Skalierung | `docs/eidas-arf-konformitaet.md`: „Nicht nachgewiesen", Zustände liegen im Arbeitsspeicher |
 | Offizieller ARF- und eIDAS-Konformitätsnachweis | `docs/eidas-arf-konformitaet.md:37`: „Nicht erfüllt/nicht nachgewiesen" |
 | Interoperabilität mit einer echten Wallet | **nicht gelaufen**, siehe Abschnitt 4 |
-| Externes Security-Review | `docs/produktionsreife.md`: nicht vorhanden |
+| Externes Security-Review | [interne Notiz, nicht veröffentlicht]: nicht vorhanden |
 
 ### 5.4 Als Arbeitsname geführt
 
-Der Produktname in diesem Dokument ist ein Arbeitsname. Er wird bewusst nur an
-einer Stelle geführt, damit `tools/rename.mjs` ihn später ersetzen kann. Die
-Namensentscheidung selbst ist offen (`docs/offene-entscheidungen.md`, Punkt 2).
+Der Produktname in diesem Dokument ist ein Arbeitsname. Die Namensentscheidung ist offen.

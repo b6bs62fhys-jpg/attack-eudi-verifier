@@ -1,5 +1,5 @@
 #!/bin/sh
-# demo-check.sh: prüft, ob die Schritte aus docs/demo-ablauf.md noch so laufen
+# demo-check.sh: prüft, ob die Schritte aus [interne Notiz, nicht veröffentlicht] noch so laufen
 # wie dort beschrieben.
 #
 # Ohne Docker, ohne Colima. Startet den Dienst lokal im Entwicklungsbetrieb auf
@@ -77,7 +77,7 @@ pruefe 'Schritt 2  Status nennt die Laufzeit' 1 \
 pruefe 'Schritt 2  Status listet die Routen' 1 \
   "$(printf '%s' "$AUSGABE_STATUS" | grep -c 'GET    /live')"
 # Der Dienst meldet beim Start eine andere Routenzahl als die ROUTES-Liste
-# enthaelt. Siehe Befund in docs/bericht-grosser-auftrag.md. Hier wird der
+# enthaelt. Siehe Befund in [interner Bericht, nicht veröffentlicht] Hier wird der
 # dokumentierte Wert geprueft, der ist derzeit 9.
 ROUTEN_STATUS=$(printf '%s' "$AUSGABE_STATUS" | grep -cE '^\s+(GET|POST|DELETE)\s+/')
 pruefe 'Schritt 2  Status listet neun Routen' 9 "$ROUTEN_STATUS"
@@ -101,7 +101,7 @@ pruefe 'Schritt 3  Start warnt vor ATTACK_ALLOW_SELF_SIGNED' 1 \
   "$(printf '%s' "$LOG" | grep -c 'WARNUNG: ATTACK_ALLOW_SELF_SIGNED=true ist AKTIV')"
 pruefe 'Schritt 3  Start meldet den laufenden Dienst' 1 \
   "$(printf '%s' "$LOG" | grep -c 'service_started')"
-# Die Zahl der Warnzeilen ist in docs/demo-ablauf.md nicht festgeschrieben,
+# Die Zahl der Warnzeilen ist in [interne Notiz, nicht veröffentlicht] nicht festgeschrieben,
 # sie wuchs von 6 auf 14. Geprueft wird, dass überhaupt gewarnt wird.
 pruefe 'Schritt 3  Start warnt mehrfach, nicht nur einmal' 1 \
   "$([ "$(printf '%s' "$LOG" | grep -c bootstrap_warning)" -gt 1 ] && echo 1 || echo 0)"
@@ -165,7 +165,7 @@ pruefe 'Schritt 6  Anfrageobjekt hat drei JWT-Teile' 3 "$RO_TEILE"
 # --- Schritt 7: Nachweis einreichen ----------------------------------------
 
 # Der SD-JWT stammt aus dem Mock-Wallet des Repositorys, es ist kein Material
-# aus einer echten Wallet. Siehe Abschnitt 5 von docs/demo-ablauf.md.
+# aus einer echten Wallet. Siehe Abschnitt 5 von [interne Notiz, nicht veröffentlicht].
 node --experimental-strip-types tools/demo-check-sdjwt.mjs >/tmp/demo-check-sdjwt.out 2>/tmp/demo-check-sdjwt.log
 SDJWT=$(cat /tmp/demo-check-sdjwt.out 2>/dev/null)
 pruefe 'Schritt 7  Testnachweis laesst sich erzeugen' 1 \

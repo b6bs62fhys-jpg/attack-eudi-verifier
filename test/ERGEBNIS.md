@@ -22,4 +22,4 @@ Kriterien: lokal < 1 h startbar · erzeugt signiertes Request Object mit DCQL f�
 
 **miEUDIverifier:** trotz grüner 48/48 Unit-Tests und funktionierender App nicht als Basis geeignet – es ist ein Client für die EU-Referenz-Backend-API; signiertes Request Object und vp_token-Validierung liegen außerhalb des Kandidaten (eigenes Risiko, Einzelautor). Nicht in jedem Winkel für den deutschen Durchlauf nützlich, aber nur als Referenz/Wiederverwendung.
 
-Evidence: `test/waltid/evidence/waltid-run.txt`, `docs/belege/eudi-verify-run.txt`, `test/evidence/mieudi-verify.txt`.
+Evidence: `test/waltid/evidence/waltid-run.txt`, `test/evidence/mieudi-verify.txt`. The eudi-verify run log is not included in the public copy.

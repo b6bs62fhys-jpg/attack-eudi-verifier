@@ -29,7 +29,7 @@ export type AuditEvent =
   | 'session_deleted'
   /**
    * Eine veraltete `good`-OCSP-Antwort wurde aus der Gnadenfrist verwendet
-   * (Option B aus docs/entscheidung-ocsp-fail-modus.md). Der `detail` nennt nur
+   * (Option B aus [interne Notiz, nicht veröffentlicht]). Der `detail` nennt nur
    * Alter und Frist der verwendeten Antwort, keine Zertifikatsdaten.
    */
   | 'issuer_revocation_grace_period';

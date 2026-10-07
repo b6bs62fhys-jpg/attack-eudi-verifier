@@ -85,7 +85,7 @@ raten. Quelle: `src/onboarding/errors.ts`, `src/onboarding/onboarding-gate.ts:11
 
 | Code | Bedeutung |
 |---|---|
-| `entitlement_unknown` | Policy-OID des WRPAC liegt unter dem Entitlement-Arc, aber nicht in der konfigurierten Karte. Siehe `docs/entitlement-betrieb.md`. |
+| `entitlement_unknown` | Policy-OID des WRPAC liegt unter dem Entitlement-Arc, aber nicht in der konfigurierten Karte. Siehe [interne Notiz, nicht veröffentlicht]. |
 | `wrpac_policy_missing` | WRPAC trägt keine EUDIWRP-Policy-OID. |
 | `wrpac_contact_san_missing` | WRPAC hat keine Kontakt-SAN. |
 | `wrpac_key_usage_invalid` | WRPAC ohne `digitalSignature` in der KeyUsage. |
@@ -171,7 +171,7 @@ Zuordnung seitdem als Invariante.
 | `issuer_not_trusted` | Kein konfigurierter Anker steht auf der Trust List. |
 | `issuer_certificate_revoked` | Ein Zertifikat der Aussteller-Kette ist gesperrt (OCSP `revoked` oder Bibliotheksbefund). Quelle: `src/onboarding/ocsp-revocation.ts`, `src/service/service.ts`. |
 | `issuer_certificate_suspended` | Ein Zertifikat der Aussteller-Kette ist ausgesetzt (OCSP `revoked` mit Grund `certificateHold`). |
-| `issuer_revocation_check_failed` | Die Sperrprüfung der Aussteller-Kette ist nicht zu einem verwertbaren Ergebnis gekommen: Sperrquelle nicht erreichbar, Zeitüberschreitung, unbrauchbare oder abgelaufene Antwort, fehlende Sperrquelle oder unbekannter Status. Der genaue Grund steht im Audit-Log. Details zur Gnadenfrist: `docs/entscheidung-ocsp-fail-modus.md`. |
+| `issuer_revocation_check_failed` | Die Sperrprüfung der Aussteller-Kette ist nicht zu einem verwertbaren Ergebnis gekommen: Sperrquelle nicht erreichbar, Zeitüberschreitung, unbrauchbare oder abgelaufene Antwort, fehlende Sperrquelle oder unbekannter Status. Der genaue Grund steht im Audit-Log. Details zur Gnadenfrist: [interne Notiz, nicht veröffentlicht]. |
 | `certificate_expired` | Ein Aussteller-Zertifikat im `x5c` des Credentials ist abgelaufen, oder alle konfigurierten Aussteller-Anker sind abgelaufen (Haertung 9). |
 | `certificate_not_yet_valid` | Wie oben, aber noch nicht gültig (Haertung 9). |
 | `credential_signature_invalid` | Signatur des Credentials ungültig. |
@@ -191,7 +191,7 @@ Dienstes, nicht in Antworten an Mandanten.
 
 | Ereignis | Bedeutung |
 |---|---|
-| `issuer_revocation_grace_period` | Für die Issuer-Zertifikatskette wurde eine veraltete `good`-OCSP-Antwort aus der begrenzten Gnadenfrist verwendet (Option B aus `docs/entscheidung-ocsp-fail-modus.md`). Der `detail` folgt dem Dienstformat `session=<uuid> reason=stale_good_reused` und nennt bewusst **keine** Zertifikats-, Claim- oder Responder-Daten. |
+| `issuer_revocation_grace_period` | Für die Issuer-Zertifikatskette wurde eine veraltete `good`-OCSP-Antwort aus der begrenzten Gnadenfrist verwendet (Option B aus [interne Notiz, nicht veröffentlicht]). Der `detail` folgt dem Dienstformat `session=<uuid> reason=stale_good_reused` und nennt bewusst **keine** Zertifikats-, Claim- oder Responder-Daten. |
 
 ## Zeitangaben und Uhrabweichung (Haertung 9)
 

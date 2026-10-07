@@ -12,7 +12,7 @@ Erhoben am 30.09.2026 auf `main` commit `88f9cb8`. Grundlage waren die lokal
 installierten Pakete und `package-lock.json`. Es wurde **kein** Werkzeug
 installiert und keine Abhaengigkeit ergaenzt.
 
-**Produktname: `Attack`.** Arbeitsname, siehe `docs/umbenennung-inventar.md`.
+**Produktname: `Attack`.** Arbeitsname, siehe [interne Notiz, nicht veröffentlicht].
 
 ## Kurzfassung
 

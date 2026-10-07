@@ -10,7 +10,7 @@ Dieses Dokument beschreibt den nachgewiesenen Prototyp-Stand. Es ist keine Konfo
 |---|---|---|
 | OpenID4VP Authorization Request | Signiertes JAR nach RFC 9101/OpenID4VP-Struktur, `x509_hash`, ES256, `x5c`, `state`, `nonce`, `response_uri` | `src/service/service.ts`, `src/onboarding/jar.ts`, `src/service/service.test.ts` |
 | DCQL | HAIP-DCQL-Abfrage über `@openeudi/openid4vp`; `pid_basis` und `age_over_18` als strikt validierte Mandantenprofile | `src/service/profile.ts`, `src/service/profile-service.test.ts` |
-| PID-Profil | `pid_basis` fragt `given_name` und `birth_date`; `age_over_18` fragt nur `age_over_18` | `docs/entscheidung-dcql-feldname.md`, Profil-Tests |
+| PID-Profil | `pid_basis` fragt `given_name` und `birth_date`; `age_over_18` fragt nur `age_over_18` | [interne Notiz, nicht veröffentlicht], Profil-Tests |
 | SD-JWT-VC | SD-JWT-VC mit selektiven Disclosures, Issuer-`x5c` und KB-JWT über die Bibliothek | `src/service/credential-status.test.ts`, `src/decision-test/sd-jwt-nachweis.test.ts` |
 | Key Binding / Nonce | KB-JWT wird gegen Nonce und Audience geprüft; Abweichungen werden abgelehnt | `src/service/nachweis.test.ts`, `src/decision-test/sd-jwt-nachweis.test.ts` |
 | Antwortverschlüsselung | `direct_post.jwt` mit ECDH-ES und A128GCM/A256GCM; frisches Schlüsselpaar je Sitzung, `kid = state`, Schlüsselverworfung nach Verarbeitung | `0187c2a`, `src/service/direct-post-interop.test.ts`, `src/service/service.ts` |

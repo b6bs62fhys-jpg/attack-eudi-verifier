@@ -4,8 +4,7 @@ Für einen Entwickler, der den Prüfdienst lokal ansprechen will. Voraussetzung:
 Node 22, ein checkout dieses Repositorys, `npm ci`. **Kein Docker, kein
 Colima.** Bearbeitet am 30.09.2026 auf `main` commit `88f9cb8`.
 
-> **Produktname: `Attack`.** Arbeitsname, bewusst nur hier geführt, damit
-> `tools/rename.mjs` ihn ersetzen kann (`docs/umbenennung-inventar.md`).
+> **Produktname: `Attack`.** Arbeitsname.
 
 Alle Ausgaben in diesem Dokument sind wörtlich kopiert. Keine ist erfunden und
 keine ist zusammengebaut.
@@ -228,7 +227,7 @@ zugeordnet. Belege in `docs/interop-matrix.md`.
 | **Registratur-Anbindung** | Der Client existiert im Code, wird aber nicht verdrahtet. `docs/interop-matrix.md` Abschnitt 3. |
 | **Test mit einer echten Wallet** | Es wurde **kein** Test gegen eine echte Wallet durchgeführt. Der Nachweis in Schritt 2 stammt aus lokal erzeugtem Testmaterial. `docs/interop-matrix.md` Abschnitt 4. |
 | **Zertifizierung** | Es liegt weder eine Zertifizierung noch ein Konformitätsnachweis vor. `docs/eidas-arf-konformitaet.md:4`. |
-| **Externe Prüfung** | Weder Penetrationstest noch externes Review. `docs/produktionsreife.md:76`. |
+| **Externe Prüfung** | Weder Penetrationstest noch externes Review. [interne Notiz, nicht veröffentlicht]. |
 | **Referenzkunden** | Es gibt keine. |
 | **Datenhaltung** | Ergebnisse liegen nur im Arbeitsspeicher und sind flüchtig. Für Nachweiszwecke reicht das nicht, `docs/bedrohungsmodell.md` S15. |
 | **Produktionsbetrieb** | Hier läuft der Dienst im Entwicklungsbetrieb mit Testmaterial, Port 18100, ohne TLS. |

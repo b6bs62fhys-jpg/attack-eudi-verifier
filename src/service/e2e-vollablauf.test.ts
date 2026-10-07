@@ -198,7 +198,7 @@ describe('Vollständiger Systemdurchlauf', () => {
       audience,
       vct: PID_VCT_DEFAULT,
       additionalDisclosures: { age_over_18: true },
-      // Datenminimierung wie in docs/demo-ablauf.md beschrieben: das
+      // Datenminimierung wie in [interne Notiz, nicht veröffentlicht] beschrieben: das
       // Geburtsdatum steckt im Credential (Hash im Issuer-JWT), wird aber
       // nicht offengelegt, weil niemand danach gefragt hat.
       withheldDisclosures: { birth_date: '1990-01-01' },
@@ -225,7 +225,7 @@ describe('Vollständiger Systemdurchlauf', () => {
     assert.equal(body.result.valid, true);
     assert.equal(body.result.error, '');
     assert.equal(body.result.issuerCountry, 'DE');
-    // Datenminimierung, wie in docs/demo-ablauf.md zugesagt: alle
+    // Datenminimierung, wie in [interne Notiz, nicht veröffentlicht] zugesagt: alle
     // angefragten Attribute kommen an, und nichts aus dem Credential, was die
     // Wallet zurueckgehalten hat.
     assert.equal(body.result.claims.given_name, 'Ada');
@@ -324,7 +324,7 @@ describe('Vollständiger Systemdurchlauf', () => {
     // als selektive Offenlegung. Die Bibliothek gab sie ueber `parsed.claims`
     // trotzdem aus, und der Dienst reichte das ungefiltert weiter. Damit
     // bekam der Prüfer Felder, die er nie angefragt hat und die die Wallet nie
-    // offengelegt hat — im Widerspruch zu docs/demo-ablauf.md und zum
+    // offengelegt hat — im Widerspruch zu [interne Notiz, nicht veröffentlicht] und zum
     // eIDAS-Grundsatz der Datenminimierung.
     //
     // Vorher war der Fehler nur für gehashte Claims auffällig, denn für einen
@@ -384,7 +384,7 @@ describe('Vollständiger Systemdurchlauf', () => {
     assert.equal(ergebnis.given_name, 'Ada');
 
     // Das nicht Angefragte kommt nicht an — unabhaengig davon, wie es im
-    // Credential stand. Genau das ist die Zusage aus docs/demo-ablauf.md:69-73.
+    // Credential stand. Genau das ist die Zusage aus [interne Notiz, nicht veröffentlicht].
     for (const feld of [veroechter, '_internes_merkmal', 'status']) {
       assert.ok(
         !Object.prototype.hasOwnProperty.call(ergebnis, feld),

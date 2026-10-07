@@ -1,7 +1,7 @@
 /**
  * Befund M4 aus docs/bedrohungsmodell.md: die Aussage „das Audit-Log enthält
- * keine personenbezogenen Daten" (docs/produktionsreife.md:52,
- * docs/technischer-status.md) war nicht automatisiert abgesichert. Es gab Tests,
+ * keine personenbezogenen Daten" ([interne Notiz, nicht veröffentlicht],
+ * [interne Notiz, nicht veröffentlicht]) war nicht automatisiert abgesichert. Es gab Tests,
  * die prüfen, OB ein Ereignis entsteht, aber keinen, der prüft, WAS drinsteht.
  *
  * Dieser Test legt einen eindeutigen Markerwert in die Präsentation — in einen
@@ -10,7 +10,7 @@
  * alle vier Fälle, die Audit-Einträge erzeugen: gültige Präsentation, inhaltlich
  * abgelehnte, Replay und unbekannter Zustand.
  *
- * Der Gegenbeweis ist Teil des Tests und steht in docs/bericht-audit-log-inhalt.md:
+ * Der Gegenbeweis ist Teil des Tests und steht in [interner Bericht, nicht veröffentlicht]:
  * mit einem absichtlich in einen Audit-Eintrag geschriebenen Marker wird derselbe
  * Test rot.
  *

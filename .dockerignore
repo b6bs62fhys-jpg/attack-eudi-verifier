@@ -43,8 +43,7 @@ examples
 *.log
 *.md
 
-# Konfigurationssatz der Website. `site.config.json` wird von
-# `tools/site-url.mjs` gelesen, aber nicht vom Dienst im Container.
+# Konfiguration einer Website, nicht vom Dienst im Container gelesen.
 site.config.json
 netlify.toml
 

@@ -11,7 +11,7 @@
  * Bei einem Bereich zaehlt die erste Zeile als Anker, sie muss Inhalt haben.
  * Ein Bereich darf Leerzeilen enthalten, das ist normal fuer Code.
  *
- * Aufruf: node tools/belege-pruefen.mjs docs/adr-sitzungsspeicher.md
+ * Aufruf: node tools/belege-pruefen.mjs [interne Notiz, nicht veröffentlicht]
  * Rueckgabe: 0 wenn alle Belege stimmen, 1 sonst. Die Fehler gehen nach stderr.
  */
 import { readFileSync, existsSync } from 'node:fs';

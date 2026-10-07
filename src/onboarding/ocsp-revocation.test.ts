@@ -566,7 +566,7 @@ describe('CertID- und Request-Bau', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Option B aus docs/entscheidung-ocsp-fail-modus.md: begrenzte Gnadenfrist
+// Option B aus [interne Notiz, nicht veröffentlicht]: begrenzte Gnadenfrist
 // fuer veraltete, zuvor verifizierte `good`-Antworten. Die Zeit wird ueber die
 // Uhr des Checkers gesteuert (`now`), damit die Grenzen exakt getroffen werden.
 // Der Ausfall des Responders wird als HTTP 503 simuliert; das ist fuer den

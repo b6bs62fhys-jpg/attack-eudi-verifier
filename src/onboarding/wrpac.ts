@@ -33,7 +33,7 @@ import { ID_ETSI_WRPA_ENTITLEMENT_ARC, ID_ETSI_WRPA_POLICY_IDENTIFIERS_ARC, OID_
 import { enforceRevocation, type RevocationChecker } from './revocation.ts';
 
 export interface EntitlementMap {
-  /** Entitlement-OID -> ETSI-Entitlement-URI (TEST-Konfiguration, siehe docs/erweiterung-status.md). */
+  /** Entitlement-OID -> ETSI-Entitlement-URI (TEST-Konfiguration, siehe [interne Notiz, nicht veröffentlicht]). */
   [oid: string]: string;
 }
 

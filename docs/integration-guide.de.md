@@ -193,7 +193,7 @@ Nach Fehlerkategorie behandeln, nicht nach lokalisiertem Meldungstext:
 
 Bis zum 27.09.2026 beantwortete `/direct_post` **jede abgelehnte**
 Wallet-Antwort mit 401, auch `unknown_state`. Das war eine inkompatible
-Änderung für Integratoren und ist im `CHANGELOG.md` als solche vermerkt.
+Änderung für Integratoren.
 
 Diese Migration betrifft nur die Fälle, in denen der Dienst die Präsentation
 **nicht verarbeiten konnte** (`ok: false`, heute 422). Verarbeitete und

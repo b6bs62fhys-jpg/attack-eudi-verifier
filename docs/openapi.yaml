@@ -10,7 +10,7 @@ openapi: 3.0.3
 # Bewusst knapp. Es sind nur die Felder aufgeführt, die aus dem Code oder einem
 # Test belegt sind. Was nicht belegt ist, steht nicht hier.
 #
-# Produktname: `Attack`. Arbeitsname, siehe docs/umbenennung-inventar.md.
+# Produktname: `Attack`. Arbeitsname, siehe [interne Notiz, nicht veröffentlicht].
 
 info:
   title: Prüfdienst für EUDI-Wallet-Präsentationen
@@ -21,7 +21,7 @@ info:
 
     Stand 30.09.2026, `main` commit `88f9cb8`. Es liegt keine Zertifizierung
     vor, es gab keinen Test gegen eine echte Wallet und keine Referenzkunden.
-    Nicht als Produktionsbeschreibung lesen, `docs/produktionsreife.md`.
+    Nicht als Produktionsbeschreibung lesen, [interne Notiz, nicht veröffentlicht].
 
 servers:
   - url: http://127.0.0.1:18100

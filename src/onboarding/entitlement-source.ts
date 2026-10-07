@@ -36,7 +36,7 @@
  * eine lokal gepflegte Datei als Zwischenlösung seriös: Sie fügt der Kette keine
  * Berechtigung hinzu.
  *
- * **Keine amtliche Quelle.** Es gibt nach dem in `docs/entitlement-recherche.md`
+ * **Keine amtliche Quelle.** Es gibt nach dem in [interne Notiz, nicht veröffentlicht]
  * geprüften Stand keine öffentlich erreichbare zentrale
  * Entitlement-Registry angebunden zu werden; die Norm schreibt nationale
  * Register vor (Klausel 4.6.1), liefert aber keine URL und kein API-Schema. Der
