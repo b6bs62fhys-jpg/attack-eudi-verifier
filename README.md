@@ -8,7 +8,7 @@
 Your backend asks for a check (for example "is this person over 18" or "first name and date of birth from the PID"), the user presents the credential from their EUDI Wallet (in Germany: d-you), and you receive only the result you asked for.
 
 > **Status: prototype, not for production use.**
-> It runs end to end against a mock wallet in this repository and has been tried against the German EUDI Wallet sandbox. There is no certification, no external security review and no production deployment. All keys and certificates in dev mode are TEST material, created in memory only and never persisted or logged. Known gaps are listed in [What it does not do yet](#what-it-does-not-do-yet).
+> Tested end to end only against the mock wallet in this repository, with TEST keys and TEST credentials created in memory. Not yet tested with a real wallet: no sandbox (including the SPRIND sandbox), no national wallet, no production wallet. Three open source verifiers (walt.id, eudi-verify, miEUDIverifier) were evaluated as possible building blocks; those evaluation runs did not involve this service. There is no certification, no external security review and no production deployment. All keys and certificates in dev mode are TEST material, created in memory only and never persisted or logged. Known gaps are listed in [What it does not do yet](#what-it-does-not-do-yet).
 
 ## What it does
 
@@ -50,7 +50,7 @@ curl -s -X POST http://127.0.0.1:8080/v1/verification-requests \
   -d '{"claims":["given_name","birth_date"]}'
 ```
 
-A complete walk through with a simulated wallet response and all error cases is in [`docs/quickstart-integration.md`](docs/quickstart-integration.md) (German). Every command in that file is executed by a test.
+A complete walk through with a simulated wallet response and all error cases is in [`docs/quickstart-integration.md`](docs/quickstart-integration.md) (German). The `curl` examples in that file are executed by a test.
 
 ## API
 
@@ -83,6 +83,8 @@ Want help with a pilot? Two weeks, one use case (for example age check or identi
 
 ## What it does not do yet
 
+* No **test with a real wallet**, a sandbox or a national wallet; only the mock wallet in this repository
+* No **tenant management** outside dev mode: tenants and API keys are only created in dev mode, so production mode has no usable tenant yet
 * No **mdoc** (ISO/IEC 18013-5); only `dc+sd-jwt`
 * No **LOTL** / trusted list processing; only explicitly configured trust anchors
 * No **DCQL credential sets**
@@ -90,7 +92,7 @@ Want help with a pilot? Two weeks, one use case (for example age check or identi
 * No persistence: sessions and results live in memory only
 * No certification, no penetration test, no external review
 
-Details and evidence: [`docs/interop-matrix.md`](docs/interop-matrix.md) (German).
+Details and evidence: [`docs/interop-matrix.md`](docs/interop-matrix.md) (German) and [`docs/security.md`](docs/security.md).
 
 ## Tests
 
@@ -110,8 +112,9 @@ Most documents are in German; English versions exist where marked.
 * Integration guide: [English](docs/integration-guide.md), [Deutsch](docs/integration-guide.de.md)
 * Integration quickstart (Deutsch): [`docs/quickstart-integration.md`](docs/quickstart-integration.md)
 * eIDAS and ARF conformance mapping: [English](docs/eidas-arf-konformitaet.en.md), [Deutsch](docs/eidas-arf-konformitaet.md)
-* Interoperability (Deutsch): [`docs/interop-matrix.md`](docs/interop-matrix.md), [`docs/interop-matrix.de.md`](docs/interop-matrix.de.md)
-* Security and threat model (Deutsch): [`docs/sicherheit.md`](docs/sicherheit.md), [`docs/bedrohungsmodell.md`](docs/bedrohungsmodell.md)
+* Interoperability and test status (Deutsch): [`docs/interop-matrix.md`](docs/interop-matrix.md)
+* Security: [English](docs/security.md), [Deutsch](docs/sicherheit.md)
+* Threat model (Deutsch): [`docs/bedrohungsmodell.md`](docs/bedrohungsmodell.md)
 * Deployment and operations: [`docs/deployment.md`](docs/deployment.md) (English), [`docs/betrieb.md`](docs/betrieb.md) (Deutsch)
 * Monitoring: [English](docs/monitoring-runbook.md), [Deutsch](docs/monitoring-runbook.de.md)
 * Diagnostic CLI: [`docs/cli-tool.md`](docs/cli-tool.md)

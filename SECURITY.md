@@ -2,7 +2,9 @@
 
 ## Status
 
-Attack is a prototype and not intended for production use. It has not had an external security review or penetration test. Please keep that in mind when you evaluate findings and when you deploy it.
+Attack is a prototype and not intended for production use. It has not had an external security review or penetration test. It has been tested end to end only against the mock wallet in this repository, not with a real wallet. Please keep that in mind when you evaluate findings and when you deploy it.
+
+Implemented security properties and known gaps are documented in [`docs/security.md`](docs/security.md) (German: [`docs/sicherheit.md`](docs/sicherheit.md)).
 
 ## Reporting a vulnerability
 

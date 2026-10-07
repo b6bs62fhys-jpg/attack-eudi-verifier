@@ -47,7 +47,7 @@ Alle Zahlen sind gegen den Stand vom 27.09.2026 verifiziert.
 - `npm run cli -- doctor`: liest dieselben Umgebungsvariablen und ruft dieselben Funktionen auf wie der Dienst beim Start. 9 Tests prüfen Rückgabewerte und die read-only-Zusage. Anleitung in `docs/cli-tool.md`.
 - Flow-Demo-Smoke-Test: Startseite 200, Create über Proxy 201, nicht erlaubte `/direct_post`-Route 404.
 
-Diese Nachweise sind lokale Tests. Ein GitHub-Actions-Lauf und ein Sandbox-Interop-Lauf stehen noch aus.
+Diese Nachweise sind lokale Tests. Typecheck, Lint, Tests, Coverage und `npm audit` laufen inzwischen auch in GitHub Actions. Ein Test mit einer echten Wallet oder in einer Sandbox ist nicht gelaufen; Ende zu Ende getestet wurde nur gegen die Mock-Wallet dieses Repositorys.
 
 ## 4. Bewertung
 
