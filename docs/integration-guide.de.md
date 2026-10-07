@@ -66,6 +66,11 @@ const request = await client.createPresentationRequest({
 console.log(request.requestObjectUri);
 ```
 
+Die Antwort enthält außerdem `walletUrl`, den Aufruf für eine echte Wallet
+(`openid4vp://?client_id=...&request_uri=...&request_uri_method=get`). Als Link
+auf demselben Gerät oder als QR-Code für ein zweites Gerät anzeigen. Request URI
+und Response URI darin kommen aus `ATTACK_PUBLIC_BASE_URL`.
+
 ## 3. Wallet-Antwort empfangen und prüfen
 
 Die Wallet sendet an den öffentlichen Endpunkt `/direct_post`. Der Dienst

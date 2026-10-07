@@ -26,12 +26,25 @@ import {generateTestKeyMaterial} from '../decision-test/mock-wallet.ts';
 import {AuditLog} from './audit.ts';
 import {NO_CREDENTIAL_STATUS, TokenStatusListChecker, type CredentialStatusChecker} from './credential-status.ts';
 import {OcspRevocationChecker} from '../onboarding/ocsp-revocation.ts';
+import {CrlRevocationChecker} from '../onboarding/crl-revocation.ts';
+import {
+  buildRevocationChecker,
+  COMBINED_CRL_TIMEOUT_MS,
+  COMBINED_OCSP_TIMEOUT_MS,
+  describeRevocationSources,
+  ENV_ATTACK_ISSUER_REVOCATION_SOURCES,
+  ENV_ATTACK_ONBOARDING_REVOCATION_SOURCES,
+  parseRevocationSources,
+  type RevocationSourceName,
+} from '../onboarding/revocation-source.ts';
 import {NO_REVOCATION, type RevocationChecker} from '../onboarding/revocation.ts';
 import {createEntitlementMapProvider} from '../onboarding/entitlement-source.ts';
 import {describeOnboardingState, resolveOnboardingGate, type OnboardingMaterial} from '../onboarding/onboarding-wiring.ts';
 import {resolveIssuerAnchors} from './issuer-anchors.ts';
 import {VerifierService} from './service.ts';
 import {TenantStore} from './tenant.ts';
+import {applyTenantFile, ENV_ATTACK_TENANTS_FILE, loadTenantFile} from './tenant-file.ts';
+import {ENV_ATTACK_REGISTRATION_CERTIFICATE_FILE, loadRegistrationCertificate, type VerifierInfoEntry} from './registration-certificate.ts';
 import {resolveVerifierIdentity} from './verifier-identity.ts';
 import {ServiceMetrics} from './metrics.ts';
 
@@ -52,8 +65,16 @@ export interface Bootstrapped {
   credentialStatus: CredentialStatusChecker;
   /** Angelegte Test-Mandanten (leer ohne Entwicklungsschalter). */
   testTenants: ReadonlyArray<{ id: string; apiKey: string }>;
+  /** Mandanten aus ATTACK_TENANTS_FILE (undefined, wenn keine Datei konfiguriert ist). */
+  tenantFile?: { active: number; revoked: number };
   /** Sperrprüfung der Aussteller-Zertifikatskette. */
   issuerRevocation: RevocationChecker;
+  /** Konfigurierte Sperrquellen der Aussteller-Kette, in Vorrangreihenfolge. */
+  issuerRevocationSources: readonly RevocationSourceName[];
+  /** Sperrprüfung im Onboarding-Gate; eigene Instanz ohne geerbte Gnadenfrist. */
+  onboardingRevocation: RevocationChecker;
+  /** Konfigurierte Sperrquellen des Onboarding-Gates, in Vorrangreihenfolge. */
+  onboardingRevocationSources: readonly RevocationSourceName[];
   /** true, wenn das Onboarding-Gate (WRPAC/WRPRC) tatsächlich aktiv ist. */
   onboardingActive: boolean;
   /** Sprechender Zustand des Gates für Logs und Betrieb. */
@@ -110,18 +131,43 @@ export async function bootstrapService(
   // Zähler der Gnadenfrist-Verwendungen. Der Dienst wertet ihn beim Schreiben
   // des Audit-Ereignisses aus, weil nur er den Mandanten kennt (B8).
   const gracePeriodSeen = { count: 0 };
+  // Sperrquellen je Prüfpfad (revocation-source.ts): Standard OCSP zuerst, CRL
+  // als Rückfall; im Produktionsmodus ist CRL Pflicht. Die Variablen werden
+  // auch im Entwicklungsbetrieb gelesen, damit ein Tippfehler nicht erst in
+  // Produktion auffällt.
+  const issuerRevocationSources = parseRevocationSources(env, ENV_ATTACK_ISSUER_REVOCATION_SOURCES, config);
+  const onboardingRevocationSources = parseRevocationSources(env, ENV_ATTACK_ONBOARDING_REVOCATION_SOURCES, config);
   const issuerRevocation: RevocationChecker = config.devMode
     ? NO_REVOCATION
-    : new OcspRevocationChecker({
-        clockSkewSeconds: config.clockSkewSeconds,
-        unavailableMode: 'bounded-soft-fail',
-        observer: {
-          onGracePeriodUse: () => gracePeriodSeen.count += 1,
-          onCacheHit: () => metrics.recordOcspCacheHit(),
-          onCacheMiss: () => metrics.recordOcspCacheMiss(),
-        },
+    : buildRevocationChecker(issuerRevocationSources, {
+        ocsp: (combined) =>
+          new OcspRevocationChecker({
+            clockSkewSeconds: config.clockSkewSeconds,
+            unavailableMode: 'bounded-soft-fail',
+            ...(combined ? { timeoutMs: COMBINED_OCSP_TIMEOUT_MS } : {}),
+            observer: {
+              onGracePeriodUse: () => gracePeriodSeen.count += 1,
+              onCacheHit: () => metrics.recordOcspCacheHit(),
+              onCacheMiss: () => metrics.recordOcspCacheMiss(),
+            },
+          }),
+        crl: (combined) =>
+          new CrlRevocationChecker({ clockSkewSeconds: config.clockSkewSeconds, ...(combined ? { timeoutMs: COMBINED_CRL_TIMEOUT_MS } : {}) }),
       });
   if (issuerRevocation === NO_REVOCATION) warn('!!! Aussteller-Sperrprüfung ist ABGESCHALTET (ATTACK_DEV_MODE aktiv). !!!');
+  else warn(`Sperrquellen Aussteller-Kette: ${describeRevocationSources(issuerRevocationSources)} (${ENV_ATTACK_ISSUER_REVOCATION_SOURCES}).`);
+
+  // Eigene Sperrprüfung für das Onboarding-Gate. Bewusst eine eigene Instanz:
+  // OCSP hier strikt, ohne die 24-Stunden-Gnadenfrist des Credential-Pfads. Die
+  // Frist für Zugangs- und Registrierungszertifikate ist nicht festgelegt und
+  // wird deshalb nicht geerbt.
+  const onboardingRevocation: RevocationChecker = config.devMode
+    ? NO_REVOCATION
+    : buildRevocationChecker(onboardingRevocationSources, {
+        ocsp: (combined) => new OcspRevocationChecker({ clockSkewSeconds: config.clockSkewSeconds, ...(combined ? { timeoutMs: COMBINED_OCSP_TIMEOUT_MS } : {}) }),
+        crl: (combined) =>
+          new CrlRevocationChecker({ clockSkewSeconds: config.clockSkewSeconds, ...(combined ? { timeoutMs: COMBINED_CRL_TIMEOUT_MS } : {}) }),
+      });
 
   const tenants = new TenantStore();
   const testTenants: Array<{ id: string; apiKey: string }> = [];
@@ -131,6 +177,24 @@ export async function bootstrapService(
       testTenants.push({ id: t.id, apiKey: t.apiKey });
     }
     warn('!!! Test-Mandanten mit bekannten API-Schlüsseln sind angelegt (ATTACK_DEV_MODE aktiv). !!!');
+  }
+
+  // Mandantendatei (fail closed): Ist die Variable gesetzt, muss die Datei
+  // vollständig gültig sein, sonst bricht der Start ab. Ohne Variable startet
+  // der Dienst, kann aber ohne Entwicklungsschalter keine Prüfanfrage annehmen;
+  // das wird laut gemeldet statt still hingenommen.
+  let tenantFile: { active: number; revoked: number } | undefined;
+  const tenantFilePath = env[ENV_ATTACK_TENANTS_FILE];
+  if (tenantFilePath) {
+    try {
+      tenantFile = applyTenantFile(tenants, await loadTenantFile(tenantFilePath));
+    } catch (e) {
+      if (e instanceof ConfigError) throw new ConfigError(`${e.message} Start abgebrochen.`);
+      throw e;
+    }
+    warn(`Mandantendatei: ${tenantFile.active} aktiv, ${tenantFile.revoked} gesperrt (${ENV_ATTACK_TENANTS_FILE}).`);
+  } else if (!config.devMode) {
+    warn(`Keine Mandantendatei konfiguriert (${ENV_ATTACK_TENANTS_FILE}). Ohne Mandanten lehnt der Dienst jede Prüfanfrage mit 401 ab.`);
   }
 
   // Entitlement-Quelle (eigener fail-closed-Schritt, vor dem Onboarding-Material):
@@ -148,7 +212,7 @@ export async function bootstrapService(
   const onboarding = await resolveOnboardingGate({
     config,
     env,
-    revocation: config.devMode ? NO_REVOCATION : issuerRevocation,
+    revocation: onboardingRevocation,
     tenants,
     entitlementMap,
     clockSkewSeconds: config.clockSkewSeconds,
@@ -166,6 +230,21 @@ export async function bootstrapService(
     warn('!!! Onboarding-Gate ist AKTIV (WRPAC/WRPRC-Prüfung). !!!');
   }
 
+  // Registrierungszertifikat für verifier_info (fail closed, wenn gesetzt).
+  // Ohne es lehnt die Wallet laut offizieller Doku die Anfrage ab; der Dienst
+  // startet trotzdem, weil das keine Lockerung ist, meldet es aber laut.
+  let verifierInfo: VerifierInfoEntry[] = [];
+  const registrationCertificatePath = env[ENV_ATTACK_REGISTRATION_CERTIFICATE_FILE];
+  if (registrationCertificatePath) {
+    verifierInfo = [await loadRegistrationCertificate(registrationCertificatePath, new Date(), config.clockSkewSeconds)];
+    warn(`Registrierungszertifikat geladen, wird als verifier_info in jede Presentation Request übernommen (${ENV_ATTACK_REGISTRATION_CERTIFICATE_FILE}).`);
+  } else if (!config.devMode) {
+    warn(
+      `Kein Registrierungszertifikat konfiguriert (${ENV_ATTACK_REGISTRATION_CERTIFICATE_FILE}). ` +
+        'Ohne verifier_info lehnt die EUDI-Wallet die Anfrage laut offizieller Doku ab.',
+    );
+  }
+
   const audit = new AuditLog();
   const service = new VerifierService(
     tenants,
@@ -177,8 +256,20 @@ export async function bootstrapService(
     undefined,
     onboarding,
     config.allowSelfSignedCertificate,
-    { mode: config, credentialStatus, issuerRevocation, gracePeriodSeen, resultTtlMs: config.resultTtlSeconds * 1000, clockSkewSeconds: config.clockSkewSeconds },
+    {
+      mode: config,
+      credentialStatus,
+      issuerRevocation,
+      gracePeriodSeen,
+      resultTtlMs: config.resultTtlSeconds * 1000,
+      clockSkewSeconds: config.clockSkewSeconds,
+      verifierInfo,
+    },
   );
+  // Öffentliche Basis-URL: daraus leitet der Dienst Request URI und Response
+  // URI ab. Ohne sie setzt run.ts nach dem Start die lokale Adresse (nur
+  // außerhalb von Produktion, siehe loadConfig).
+  if (config.publicBaseUrl) service.baseUrl = config.publicBaseUrl;
 
   return {
     config,
@@ -190,9 +281,13 @@ export async function bootstrapService(
     issuerAnchors,
     credentialStatus,
     issuerRevocation,
+    issuerRevocationSources,
+    onboardingRevocation,
+    onboardingRevocationSources,
     onboardingActive: onboarding !== undefined,
     onboardingState,
     testTenants,
+    ...(tenantFile ? { tenantFile } : {}),
     metrics,
   };
 }

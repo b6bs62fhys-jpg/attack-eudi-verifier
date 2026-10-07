@@ -65,6 +65,11 @@ const request = await client.createPresentationRequest({
 console.log(request.requestObjectUri);
 ```
 
+The response also contains `walletUrl`, the call for a real wallet
+(`openid4vp://?client_id=...&request_uri=...&request_uri_method=get`). Show it
+as a link on the same device or as a QR code for a second device. The request
+URI and the response URI inside come from `ATTACK_PUBLIC_BASE_URL`.
+
 ## 3. Receive and verify the wallet response
 
 The wallet posts to the public `/direct_post` endpoint. The verifier service

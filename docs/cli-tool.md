@@ -1,7 +1,8 @@
 # Diagnose-CLI
 
 Ein kleines Werkzeug, um den Betriebszustand des Verifier-Dienstes zu prüfen,
-ohne ihn zu starten und ohne ihn zu verändern.
+ohne ihn zu starten und ohne ihn zu verändern. Dazu kommt ein einziger
+Schreibbefehl, `tenant`, für die Mandantendatei (siehe unten).
 
 ```bash
 npm run cli -- status
@@ -30,9 +31,42 @@ was beim Start tatsächlich herauskäme.
 | `doctor` | Alle Prüfungen nacheinander, am Ende ein Gesamturteil |
 | `help` | Übersicht |
 
-Alle Befehle sind lesend. Es gibt bewusst **keinen** Schreibbefehl. Mandanten
-registrieren, Trust List ändern und Anker pflegen bleiben ein
+Diese Befehle sind lesend. Trust List ändern und Anker pflegen bleiben ein
 Betriebsprozess mit eigener Freigabe, keine CLI-Aktion.
+
+## Mandantenpflege: `tenant`
+
+Ohne `ATTACK_DEV_MODE` legt der Dienst keine Test-Mandanten an. Mandanten für
+den Produktionsbetrieb stehen in einer Mandantendatei, die der Dienst beim
+Start über `ATTACK_TENANTS_FILE` liest. `tenant` ist der einzige Befehl, der
+schreibt, und er schreibt nur diese eine Datei.
+
+```bash
+export ATTACK_TENANTS_FILE=/etc/attack/tenants.json
+npm run cli -- tenant add --id kunde-a --name "Kunde A GmbH" --profile pid_basis
+npm run cli -- tenant list
+npm run cli -- tenant revoke --id kunde-a
+```
+
+| Unterbefehl | Wirkung |
+|---|---|
+| `add --id --name [--profile] [--ttl] [--file]` | legt einen Mandanten an und zeigt seinen API-Schlüssel **genau einmal** auf stdout |
+| `list [--file]` | zeigt Mandanten, Status, Profil und Zeitpunkte, nie Schlüssel oder Hash |
+| `revoke --id [--file]` | sperrt einen Mandanten; wiederholbar, die ID wird nie neu vergeben |
+
+Regeln:
+
+* Gespeichert wird nur der SHA-256-Hash des Schlüssels. Wer den Klartext beim
+  Anlegen nicht notiert, legt einen neuen Mandanten an und sperrt den alten.
+* `tenant` lädt keine Dienstkonfiguration und schaltet nie den
+  Entwicklungsschalter ein. Er funktioniert mit `NODE_ENV=production`.
+* Die Datei wird atomar mit Rechten `0600` geschrieben. Eine vorhandene, aber
+  ungültige Datei wird nie überschrieben; der Befehl bricht mit Code 2 ab.
+* Der Dienst liest die Datei nur beim Start. Anlegen und Sperren wirken nach
+  einem Neustart. Gesperrte Mandanten bleiben in der Datei und bekommen 401.
+* Ist `ATTACK_TENANTS_FILE` gesetzt und die Datei fehlerhaft (unlesbar, kein
+  JSON, unbekanntes Feld, doppelte ID oder doppelter Schlüssel, unbekanntes
+  Profil), bricht der Dienst den Start ab.
 
 ## Rückgabewerte
 

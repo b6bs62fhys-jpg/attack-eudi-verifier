@@ -60,7 +60,11 @@ beforeAll(async () => {
   await writeFile(join(tmpDir, 'broken.pem'), '-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n');
   await writeFile(join(tmpDir, 'key.pem'), derToPem(new Uint8Array(await crypto.subtle.exportKey('pkcs8', verifier.privateKey)), 'PRIVATE KEY'));
   await writeFile(join(tmpDir, 'chain.pem'), derToPem(verifier.certDerBytes, 'CERTIFICATE'));
-  identityEnv = { [ENV_ATTACK_VERIFIER_KEY_PEM]: join(tmpDir, 'key.pem'), [ENV_ATTACK_VERIFIER_CERT_CHAIN_PEM]: join(tmpDir, 'chain.pem') };
+  identityEnv = {
+    ATTACK_PUBLIC_BASE_URL: 'https://verifier.example',
+    [ENV_ATTACK_VERIFIER_KEY_PEM]: join(tmpDir, 'key.pem'),
+    [ENV_ATTACK_VERIFIER_CERT_CHAIN_PEM]: join(tmpDir, 'chain.pem'),
+  };
 });
 
 afterAll(async () => {

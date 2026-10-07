@@ -11,6 +11,7 @@ stripping and performs a strict typecheck in the build stage.
 docker build -t attack-verifier:local .
 docker run --rm -p 8080:8080 \
   -e NODE_ENV=production \
+  -e ATTACK_PUBLIC_BASE_URL=https://verifier.example.de \
   -e ATTACK_VERIFIER_KEY_PEM=/run/secrets/verifier-key.pem \
   -e ATTACK_VERIFIER_CERT_CHAIN_PEM=/run/secrets/verifier-chain.pem \
   -e ATTACK_ISSUER_TRUST_ANCHORS_PEM=/run/secrets/issuer-anchors.pem \
@@ -27,9 +28,23 @@ are absent. Never set `ATTACK_DEV_MODE=true` or
 Required for production:
 
 - `NODE_ENV=production`
+- `ATTACK_PUBLIC_BASE_URL`: public https base URL under which the wallet
+  reaches the service, for example `https://verifier.example.de`. The request
+  URI and the response URI are derived from it. Without it the service would
+  hand out addresses like `http://0.0.0.0:8080`, so startup aborts in
+  production. `http://` is accepted only with `ATTACK_DEV_MODE=true`; query,
+  fragment and credentials are rejected. For the sandbox and a first pilot see
+  `docs/sandbox-runbook.md`.
 - `ATTACK_VERIFIER_KEY_PEM`: mounted PEM PKCS#8 verifier private key
 - `ATTACK_VERIFIER_CERT_CHAIN_PEM`: mounted verifier certificate chain, leaf first
 - `ATTACK_ISSUER_TRUST_ANCHORS_PEM`: mounted issuer trust anchors
+
+Required for accepting verification requests:
+
+- `ATTACK_TENANTS_FILE`: tenant file written by `npm run cli -- tenant add`.
+  It holds only the SHA-256 hash of each API key. Without it the service
+  starts, logs a warning and answers every tenant route with 401. A set but
+  invalid file aborts startup. See `docs/cli-tool.md`.
 
 Required when the onboarding gate is enabled:
 
@@ -43,6 +58,29 @@ Optional:
 - `ATTACK_CLOCK_SKEW_SECONDS`: certificate/time skew, `0..300`, default `60`
 - `ATTACK_RESULT_TTL_SECONDS`: completed-result retention, `1..3600`, default `60`
 - `ATTACK_ENTITLEMENT_MAP_JSON`: validated entitlement-map extension file
+- `ATTACK_REGISTRATION_CERTIFICATE_FILE`: the registration certificate from
+  the registrar (`registration-certificate.json`, or the JWT itself). It is sent
+  as `verifier_info: [{"format": "registration_cert", "data": "<JWT>"}]` in
+  every presentation request. Without it the service starts and warns; the
+  official developer guide states that the wallet rejects a request without
+  `verifier_info`. A set but unusable file (unreadable, no JWT, several JWTs,
+  `alg` missing or `none`, `exp` passed) aborts startup.
+- `ATTACK_ISSUER_REVOCATION_SOURCES`: revocation sources for the issuer chain
+  of presented credentials, in order of precedence: `ocsp`, `crl`,
+  `ocsp,crl` (default) or `crl,ocsp`
+- `ATTACK_ONBOARDING_REVOCATION_SOURCES`: the same for access and
+  registration certificates in the onboarding gate, default `ocsp,crl`
+
+Revocation sources: the first source that returns a status decides; the next
+source is asked only after an error (no address, unreachable, timeout, invalid
+response). If all sources fail, the presentation is rejected. With
+`NODE_ENV=production` the list must contain `crl`, otherwise startup aborts:
+in the official sandbox trust list
+(<https://bmi.usercontent.opencode.de/eudi-wallet/test-trust-lists/>) the PID
+issuer CA certificates and the German Registrar carry only CRL distribution
+points and no OCSP address. Verified CRLs are cached until their `nextUpdate`,
+at most 24 hours; errors are never cached. The onboarding gate uses its own
+checker without the 24 hour OCSP grace period of the credential path.
 
 Rate limiting:
 
@@ -123,11 +161,13 @@ Verified on 28.09.2026 against the built image: the service starts in production
 configuration **without** `ATTACK_DEV_MODE`. Full log and evidence in
 an internal note (not published), section 5.1.
 
-Three variables are required. Derived from `src/config.ts` and enforced in
-`src/service/verifier-identity.ts` and `src/service/issuer-anchors.ts`:
+Four variables are required. Derived from `src/config.ts` and enforced in
+`src/config.ts`, `src/service/verifier-identity.ts` and
+`src/service/issuer-anchors.ts`:
 
 | Variable | Rule |
 |---|---|
+| `ATTACK_PUBLIC_BASE_URL` | required in production, https only |
 | `ATTACK_VERIFIER_KEY_PEM` | required, together with the next one |
 | `ATTACK_VERIFIER_CERT_CHAIN_PEM` | required, together with the previous one |
 | `ATTACK_ISSUER_TRUST_ANCHORS_PEM` | required |
@@ -137,6 +177,7 @@ docker build -t attack-verifier:local .
 
 docker run -d --name attack -p 8080:8080 \
   -e NODE_ENV=production \
+  -e ATTACK_PUBLIC_BASE_URL=https://verifier.example.de \
   -e ATTACK_VERIFIER_KEY_PEM=/run/secrets/verifier-key.pem \
   -e ATTACK_VERIFIER_CERT_CHAIN_PEM=/run/secrets/verifier-chain.pem \
   -e ATTACK_ISSUER_TRUST_ANCHORS_PEM=/run/secrets/issuer-anchors.pem \
@@ -144,7 +185,9 @@ docker run -d --name attack -p 8080:8080 \
   attack-verifier:local
 ```
 
-Confirmed on that container: `docker ps` reports `(healthy)`, `GET /live` and
+Confirmed on that container before `ATTACK_PUBLIC_BASE_URL` became required
+(07.10.2026); the same start now needs that variable as shown above:
+`docker ps` reports `(healthy)`, `GET /live` and
 `GET /health` return HTTP 200, the process runs as `uid=1000(node)`, and the
 startup log contains **no** development warning. The known test tenant keys from
 `DEV_TEST_TENANTS` are rejected with HTTP 401, indistinguishable from an unknown
@@ -247,6 +290,7 @@ docker build -t attack-verifier:local .
 # Production path. Without a real identity the service refuses to start.
 docker run --rm -p 8080:8080 \
   -e NODE_ENV=production \
+  -e ATTACK_PUBLIC_BASE_URL=https://verifier.example.de \
   -e ATTACK_VERIFIER_KEY_PEM=/run/secrets/verifier-key.pem \
   -e ATTACK_VERIFIER_CERT_CHAIN_PEM=/run/secrets/verifier-chain.pem \
   -e ATTACK_ISSUER_TRUST_ANCHORS_PEM=/run/secrets/issuer-anchors.pem \

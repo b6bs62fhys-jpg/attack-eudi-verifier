@@ -71,9 +71,15 @@ HTTP 201
   "expiresAt": 1790757810659,
   "requestObject": "eyJ0eXAiOiJvYXV0aC1yZXErand0IiwiYWxnIjoiRVMyNTYi...",
   "responseUri": "http://127.0.0.1:18100/direct_post",
-  "requestObjectUri": "http://127.0.0.1:18100/v1/verification-requests/a1077728-050c-4945-ad72-e279caebbada/request-object"
+  "requestObjectUri": "http://127.0.0.1:18100/v1/verification-requests/a1077728-050c-4945-ad72-e279caebbada/request-object",
+  "walletUrl": "openid4vp://?client_id=x509_hash%3A...&request_uri=http%3A%2F%2F127.0.0.1%3A18100%2Fv1%2Fverification-requests%2Fa1077728-050c-4945-ad72-e279caebbada%2Frequest-object&request_uri_method=get"
 }
 ```
+
+`walletUrl` ist der Aufruf für eine echte Wallet, als Link auf demselben Gerät
+oder als QR-Code. Im Produktionsbetrieb stehen darin die Adressen aus
+`ATTACK_PUBLIC_BASE_URL`; hier zeigt er auf 127.0.0.1 und ist nur für den
+lokalen Ablauf.
 
 `claims` darf nur Namen enthalten, die im Anfrageprofil des Mandanten stehen.
 Das Standardprofil `pid_basis` kennt `given_name` und `birth_date`

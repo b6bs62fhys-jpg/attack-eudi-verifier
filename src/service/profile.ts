@@ -8,6 +8,13 @@ export interface RequestProfile {
 }
 
 export const PID_VCT_DEFAULT = 'urn:eu.europa.ec.eudi:pid:1';
+/**
+ * vct der deutschen PID im Format SD-JWT VC. Beleg: offizielle Developer-Doku,
+ * "Wallet Use Instructions" (vct_values für den deutschen PID-Aussteller) und
+ * "Presenting a PID online" (Beispielanfrage mit given_name, family_name,
+ * birthdate).
+ */
+export const PID_VCT_DE = 'urn:eudi:pid:de:1';
 
 export const REQUEST_PROFILE_TEMPLATES: Record<string, RequestProfile> = {
   pid_basis: {
@@ -22,12 +29,21 @@ export const REQUEST_PROFILE_TEMPLATES: Record<string, RequestProfile> = {
     claims: ['age_over_18'],
     credentialId: 'pid',
   },
+  // Deutsche PID aus der Sandbox-Wallet. Die Claim-Namen folgen der
+  // SD-JWT-Beispielanfrage der offiziellen Doku (birthdate, nicht birth_date).
+  pid_de: {
+    id: 'pid_de',
+    vct: PID_VCT_DE,
+    claims: ['given_name', 'family_name', 'birthdate'],
+    credentialId: 'pid',
+  },
 };
 
 const KNOWN_CLAIMS = new Set([
   'given_name',
   'family_name',
   'birth_date',
+  'birthdate',
   'age_over_18',
   'age_over_21',
   'nationality',

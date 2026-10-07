@@ -50,7 +50,8 @@
       .mark-bad { color: #a11212; }
       .mark-skip { color: #6a727c; }
       .why { display: block; color: #5d6672; font-size: 0.88rem; }
-      #requestUri { overflow-wrap: anywhere; }
+      #requestUri, #walletUrl { overflow-wrap: anywhere; }
+      img.qr { display: block; width: 240px; height: 240px; image-rendering: pixelated; background: #fff; }
       [hidden] { display: none !important; }
     </style>
   </head>
@@ -95,12 +96,16 @@
     <section id="link" hidden>
       <h2>Präsentation starten</h2>
       <p class="muted">
-        Diesen Link hätte hier eine echte Wallet geöffnet. Die Demo-Wallet läuft im Server und legt den Nachweis
-        selbst vor, deshalb ist der Schritt hier nur noch zum Nachlesen.
+        So ruft der Dienst eine echte Wallet auf: als Link auf demselben Gerät oder als QR-Code, den die Kamera eines
+        zweiten Geräts scannt. Die Demo-Wallet läuft im Server und legt den Nachweis selbst vor, deshalb ist der
+        Schritt hier nur zum Nachlesen. In der Demo zeigt der Aufruf auf 127.0.0.1, eine echte Wallet erreicht ihn
+        nicht. Für die Sandbox kommt die Adresse aus <code>ATTACK_PUBLIC_BASE_URL</code>.
       </p>
-      <p><a id="requestUri" href="#" target="_blank" rel="noopener"></a></p>
-      <button id="copy" class="secondary" type="button">Link kopieren</button>
+      <p><img id="walletQr" class="qr" alt="QR-Code mit dem Wallet-Aufruf" width="240" height="240" hidden /></p>
+      <p><code id="walletUrl"></code></p>
+      <button id="copy" class="secondary" type="button">Wallet-Aufruf kopieren</button>
       <span id="copied" class="muted" hidden>kopiert</span>
+      <p class="muted">Request Object: <a id="requestUri" href="#" target="_blank" rel="noopener"></a></p>
     </section>
 
     <section id="claims" hidden>
@@ -141,6 +146,8 @@
       const checksNote = el('checksNote');
       const linkSection = el('link');
       const requestUri = el('requestUri');
+      const walletUrl = el('walletUrl');
+      const walletQr = el('walletQr');
       const copyButton = el('copy');
       const copied = el('copied');
       const claimsSection = el('claims');
@@ -239,6 +246,11 @@
         if (outcome.requestObjectUri) {
           requestUri.href = outcome.requestObjectUri;
           requestUri.textContent = outcome.requestObjectUri;
+          walletUrl.textContent = outcome.walletUrl ?? '';
+          // Nur ein Bild aus einer data:-URL, nie HTML aus der Antwort.
+          const qr = typeof outcome.walletQr === 'string' && outcome.walletQr.startsWith('data:image/svg+xml;base64,') ? outcome.walletQr : '';
+          walletQr.hidden = qr === '';
+          if (qr) walletQr.src = qr;
           linkSection.hidden = false;
         }
 
@@ -289,7 +301,7 @@
 
       copyButton.addEventListener('click', async () => {
         try {
-          await navigator.clipboard.writeText(requestUri.href);
+          await navigator.clipboard.writeText(walletUrl.textContent || requestUri.href);
           copied.hidden = false;
         } catch {
           copied.hidden = true;

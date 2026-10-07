@@ -198,6 +198,8 @@ export interface components {
             responseUri: string;
             /** Format: uri */
             requestObjectUri: string;
+            /** @description Aufruf für die Wallet als Link oder QR-Code: openid4vp://?client_id=...&request_uri=...&request_uri_method=get. Request URI und Response URI kommen aus ATTACK_PUBLIC_BASE_URL. */
+            walletUrl?: string;
         };
         DirectPostEnvelope: {
             vp_token: {

@@ -45,6 +45,9 @@ interface RunOutcome {
   requestedClaims: readonly string[];
   scenario: { id: string; label: string; expected: string; expectedError: string; brokenStep: string | null; description: string };
   resultStatus: string;
+  requestObjectUri: string;
+  walletUrl: string;
+  walletQr: string;
 }
 
 async function run(scenario: DemoScenarioId): Promise<RunOutcome> {
@@ -107,6 +110,20 @@ describe('Demo-Szenarien über die Oberflächen-Endpunkte', () => {
     assert.equal(r.valid, true, `Gutfall muss angenommen werden, bekam ${r.error}`);
     assert.deepEqual(Object.keys(r.claims).sort(), [...DEMO_CLAIMS].sort(), 'nur angefragte Attribute im Ergebnis');
     assert.equal(Object.prototype.hasOwnProperty.call(r.claims, 'birth_date'), false, 'nicht angefragt, nicht herausgegeben');
+  });
+
+  it('die Flowseite bekommt den Wallet-Aufruf als Link und als QR-Code', async () => {
+    const r = await run('good');
+    const url = new URL(r.walletUrl);
+    assert.equal(url.protocol, 'openid4vp:');
+    assert.equal(url.searchParams.get('request_uri'), r.requestObjectUri);
+    assert.equal(url.searchParams.get('request_uri_method'), 'get');
+    assert.match(url.searchParams.get('client_id') ?? '', /^x509_hash:/);
+    assert.ok(r.walletQr.startsWith('data:image/svg+xml;base64,'));
+    assert.match(Buffer.from(r.walletQr.slice('data:image/svg+xml;base64,'.length), 'base64').toString('utf8'), /^<svg /);
+    const seite = await (await fetch(`${flow}/`)).text();
+    assert.match(seite, /id="walletQr"/);
+    assert.match(seite, /id="walletUrl"/);
   });
 
   it('Aussteller nicht auf der Trust List: issuer_trust_anchor_not_found', async () => {

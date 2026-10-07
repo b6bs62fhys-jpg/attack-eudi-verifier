@@ -12,6 +12,7 @@
 import { createLocalJWKSet, jwtVerify, type JWTPayload } from 'jose';
 
 import { buildScenarioPresentation, findScenario, type DemoScenario, type DemoScenarioId } from './scenarios.ts';
+import { walletQrDataUrl } from './wallet-qr.ts';
 import { DEMO_CLAIMS } from './scenarios.ts';
 import type { DemoTestEnvironment } from './test-environment.ts';
 import type { VerifierService } from '../service/service.ts';
@@ -49,8 +50,12 @@ export interface ScenarioRunResult {
   issuerCountry: string;
   sessionId: string;
   responseUri: string;
-  /** Link, den eine echte Wallet oeffnen wuerde. */
+  /** Adresse, unter der eine echte Wallet das Request Object abholen würde. */
   requestObjectUri: string;
+  /** Wallet-Aufruf (openid4vp://...), wie ihn der Dienst zurückgibt. */
+  walletUrl: string;
+  /** Derselbe Aufruf als QR-Code, SVG als data:-URL. */
+  walletQr: string;
   state: string;
   /** Attribute, die der Prüfer angefragt hat (Datenminimierung). */
   requestedClaims: readonly string[];
@@ -74,6 +79,7 @@ export async function runScenario(options: ScenarioRunOptions): Promise<Scenario
   const created_ = JSON.parse(createdText) as {
     requestObject: string;
     requestObjectUri: string;
+    walletUrl: string;
     state: string;
     sessionId: string;
     responseUri: string;
@@ -117,6 +123,8 @@ export async function runScenario(options: ScenarioRunOptions): Promise<Scenario
     sessionId: created_.sessionId,
     responseUri: created_.responseUri,
     requestObjectUri: created_.requestObjectUri,
+    walletUrl: created_.walletUrl,
+    walletQr: walletQrDataUrl(created_.walletUrl),
     state: created_.state,
     requestedClaims: DEMO_CLAIMS,
   };

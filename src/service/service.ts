@@ -18,7 +18,7 @@ import {buildHaipQuery, createSignedAuthorizationRequest, decryptAuthorizationRe
 import {VpSessionStore} from '../lib/session.ts';
 import {AuditLog, type AuditEvent} from './audit.ts';
 import {TenantStore} from './tenant.ts';
-import {buildAuthorizationRequestJar, DEFAULT_SUPPORTED_ENC_VALUES, VP_FORMATS_SUPPORTED} from '../onboarding/jar.ts';
+import {buildAuthorizationRequestJar, DEFAULT_SUPPORTED_ENC_VALUES, VP_FORMATS_SUPPORTED, type JarVerifierInfo} from '../onboarding/jar.ts';
 import {ErrTenantRegistrationInvalid, OnboardingError} from '../onboarding/errors.ts';
 import {ConfigError} from '../config.ts';
 import {validateRegistrationRefRaw, type RegistrationRef} from '../onboarding/registration-ref.ts';
@@ -57,6 +57,21 @@ export interface CreateRequestOutput {
   requestObject: string;
   responseUri: string;
   requestObjectUri: string;
+  /**
+   * Aufruf für die Wallet, als Link oder QR-Code:
+   * openid4vp://?client_id=...&request_uri=...&request_uri_method=get
+   * (Aufbau nach offizieller Developer-Doku, "Presenting a PID online", 1.3.2).
+   */
+  walletUrl: string;
+}
+
+/**
+ * Baut den Wallet-Aufruf aus client_id und Request URI. Beide Werte werden
+ * URL-kodiert, `request_uri_method=get`, weil der Dienst das Request Object
+ * per GET ausliefert.
+ */
+export function buildWalletUrl(clientId: string, requestUri: string): string {
+  return `openid4vp://?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(requestUri)}&request_uri_method=get`;
 }
 
 export type ResultStatus =
@@ -100,6 +115,13 @@ export interface VerifierServiceOptions {
   clockSkewSeconds?: number;
   /** Zeitgrenze je Sperrquelle der Issuer-Kette (ms), Standard 5.000. */
   revocationTimeoutMs?: number;
+  /**
+   * Einträge für `verifier_info` in jeder Presentation Request, z. B. das
+   * Registrierungszertifikat (registration-certificate.ts). Ist mindestens ein
+   * Eintrag gesetzt, signiert der Dienst das Request Object selbst (jar.ts),
+   * weil die Bibliothek keine zusätzlichen Claims erlaubt.
+   */
+  verifierInfo?: readonly JarVerifierInfo[];
   /**
    * Zähler für Verwendungen der OCSP-Gnadenfrist (B8). Der OCSP-Beobachter in
    * `bootstrapService` erhöht ihn; der Dienst vergleicht den Wert vor und nach
@@ -221,6 +243,7 @@ export class VerifierService {
   private readonly now: () => number;
   private readonly clockSkewSeconds: number;
   private readonly revocationTimeoutMs: number;
+  private readonly verifierInfo: readonly JarVerifierInfo[];
 
   constructor(
     tenants: TenantStore,
@@ -253,6 +276,7 @@ export class VerifierService {
     this.clockSkewSeconds = options.clockSkewSeconds ?? DEFAULT_CLOCK_SKEW_SECONDS;
     this.revocationTimeoutMs = options.revocationTimeoutMs ?? DEFAULT_REVOCATION_TIMEOUT_MS;
     this.gracePeriodSeen = options.gracePeriodSeen ?? { count: 0 };
+    this.verifierInfo = options.verifierInfo ?? [];
     this.tenants = tenants;
     this.audit = audit;
     this.keys = keys;
@@ -397,15 +421,18 @@ export class VerifierService {
     let requestObject: string;
     let audience: string;
     try {
-      if (registrationRef) {
+      if (registrationRef || this.verifierInfo.length > 0) {
         const jar = await buildAuthorizationRequestJar({
           requestUri,
           responseUri,
           nonce: session.nonce,
           state: session.id,
           dcqlQuery: haipQuery as unknown,
-          registrationRef,
+          ...(registrationRef ? { registrationRef } : {}),
+          ...(this.verifierInfo.length > 0 ? { verifierInfo: this.verifierInfo } : {}),
           privateKey: this.keys.privateKey,
+          publicKey: this.keys.publicKey,
+          allowSelfSignedCertificate: this.allowSelfSignedCertificate,
           certificateChain: this.keys.certificateChain,
           vpFormatsSupported: VP_FORMATS_SUPPORTED,
           encryption: { publicJwk: enc.publicJwk, supportedEncValues: DEFAULT_SUPPORTED_ENC_VALUES },
@@ -452,6 +479,7 @@ export class VerifierService {
       requestObject,
       responseUri,
       requestObjectUri: requestUri,
+      walletUrl: buildWalletUrl(audience, requestUri),
     };
   }
 

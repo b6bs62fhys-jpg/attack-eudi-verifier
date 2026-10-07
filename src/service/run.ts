@@ -64,8 +64,17 @@ const server = createApp({
 
 const host = config.host ?? '127.0.0.1';
 server.listen(config.port, host, () => {
-  service.baseUrl = `http://${host}:${config.port}`;
-  logger.info('service_started', { app: 'attack-service', host, port: config.port, message: `Attack Verifier-Dienst (Prototyp) läuft auf http://${host}:${config.port}` });
+  // Request URI und Response URI kommen aus ATTACK_PUBLIC_BASE_URL (im
+  // Produktionsmodus Pflicht). Nur ohne sie, also außerhalb von Produktion,
+  // gilt die lokale Adresse.
+  service.baseUrl = config.publicBaseUrl ?? `http://${host}:${config.port}`;
+  logger.info('service_started', {
+    app: 'attack-service',
+    host,
+    port: config.port,
+    public_base_url: service.baseUrl,
+    message: `Attack Verifier-Dienst (Prototyp) läuft auf http://${host}:${config.port}, öffentlich ${service.baseUrl}`,
+  });
   logger.info('service_routes', { count: ROUTES.length });
   if (testTenants.length > 0) logger.warn('dev_test_tenants_enabled', { count: testTenants.length });
 });

@@ -426,6 +426,8 @@ describe('RP-Onboarding (Baustein B)', () => {
         dcqlQuery: { query: [{ id: 'pid', format: 'dc+sd-jwt' }] },
         registrationRef: ref,
         privateKey: authorityVerifierKey.privateKey,
+        publicKey: authorityVerifierKey.publicKey,
+        allowSelfSignedCertificate: true,
         certificateChain: [authorityVerifierKey.certDerBytes],
       });
 

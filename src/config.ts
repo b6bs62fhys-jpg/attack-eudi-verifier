@@ -31,6 +31,14 @@ export const ENV_ATTACK_VERIFIER_CERT_CHAIN_PEM = 'ATTACK_VERIFIER_CERT_CHAIN_PE
 /** Pfad zu einer PEM-Datei mit den Vertrauensankern der Credential-Aussteller. */
 export const ENV_ATTACK_ISSUER_TRUST_ANCHORS_PEM = 'ATTACK_ISSUER_TRUST_ANCHORS_PEM';
 /**
+ * Öffentliche Basis-URL des Dienstes, so wie die Wallet ihn erreicht (z. B.
+ * https://verifier.example.de). Request URI und Response URI werden daraus
+ * abgeleitet. Muss https sein (http nur mit ATTACK_DEV_MODE=true), ohne
+ * Query und Fragment. Im Produktionsmodus Pflicht; ohne sie gäbe der Dienst
+ * Adressen wie http://0.0.0.0:8080 aus, die keine Wallet erreicht.
+ */
+export const ENV_ATTACK_PUBLIC_BASE_URL = 'ATTACK_PUBLIC_BASE_URL';
+/**
  * Erlaubte Uhrabweichung in Sekunden für Gültigkeitszeiträume von
  * Zertifikaten und Zeitangaben signierter Objekte (0..300, Standard 60).
  */
@@ -86,6 +94,8 @@ export interface AppConfig {
   port: number;
   /** Bind-Adresse des HTTP-Dienstes. */
   host?: string;
+  /** Öffentliche Basis-URL ohne abschließenden Schrägstrich, falls gesetzt. */
+  publicBaseUrl?: string;
   /** Lebensdauer eines fertigen Ergebnisses in Sekunden. */
   resultTtlSeconds: number;
   /** Erlaubte Uhrabweichung in Sekunden (Zertifikate, signierte Listen). */
@@ -154,6 +164,14 @@ export function loadConfig(
 
   const host = env[ENV_ATTACK_HOST]?.trim() || '127.0.0.1';
 
+  const publicBaseUrl = parsePublicBaseUrl(env[ENV_ATTACK_PUBLIC_BASE_URL], devMode);
+  if (isProduction && !publicBaseUrl) {
+    throw new ConfigError(
+      `${ENV_ATTACK_PUBLIC_BASE_URL} ist im Produktionsmodus Pflicht (öffentliche https-Adresse, unter der die Wallet den Dienst erreicht). ` +
+        'Start abgebrochen.',
+    );
+  }
+
   let resultTtlSeconds = DEFAULT_RESULT_TTL_SECONDS;
   const ttlRaw = env[ENV_ATTACK_RESULT_TTL_SECONDS];
   if (ttlRaw !== undefined && ttlRaw !== '') {
@@ -178,7 +196,41 @@ export function loadConfig(
     windowSeconds: zahlAusUmgebung(env, ENV_ATTACK_RATE_LIMIT_WINDOW, DEFAULT_RATE_LIMIT_WINDOW_SECONDS, 1, 3600),
   };
 
-  return { isProduction, devMode, allowSelfSignedCertificate, nodeEnv, port, host, resultTtlSeconds, clockSkewSeconds, rateLimits };
+  return {
+    isProduction,
+    devMode,
+    allowSelfSignedCertificate,
+    nodeEnv,
+    port,
+    host,
+    ...(publicBaseUrl ? { publicBaseUrl } : {}),
+    resultTtlSeconds,
+    clockSkewSeconds,
+    rateLimits,
+  };
+}
+
+/**
+ * Prüft die öffentliche Basis-URL (fail closed). Liefert sie ohne
+ * abschließenden Schrägstrich oder `undefined`, wenn nichts gesetzt ist.
+ */
+function parsePublicBaseUrl(raw: string | undefined, devMode: boolean): string | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined;
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new ConfigError(`${ENV_ATTACK_PUBLIC_BASE_URL} ist keine gültige URL. Start abgebrochen.`);
+  }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && devMode)) {
+    throw new ConfigError(
+      `${ENV_ATTACK_PUBLIC_BASE_URL} muss mit https:// beginnen (http nur mit ${ENV_ATTACK_DEV_MODE}=true). Start abgebrochen.`,
+    );
+  }
+  if (url.search || url.hash || url.username || url.password) {
+    throw new ConfigError(`${ENV_ATTACK_PUBLIC_BASE_URL} darf weder Query, Fragment noch Zugangsdaten enthalten. Start abgebrochen.`);
+  }
+  return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
 }
 
 /** Ganzzahl aus der Umgebung mit Grenzen, fail closed bei unbrauchbarem Wert. */

@@ -51,7 +51,7 @@ describe('loadConfig – Defaults (leere Umgebung)', () => {
 
 describe('loadConfig – Produktionserkennung', () => {
   it('NODE_ENV=production aktiviert isProduction', () => {
-    const c = loadConfig({ [ENV_NODE_ENV]: 'production' });
+    const c = loadConfig({ [ENV_NODE_ENV]: 'production', ATTACK_PUBLIC_BASE_URL: 'https://verifier.example' });
     assert.equal(c.isProduction, true);
     assert.equal(c.devMode, false);
     assert.equal(c.allowSelfSignedCertificate, false);

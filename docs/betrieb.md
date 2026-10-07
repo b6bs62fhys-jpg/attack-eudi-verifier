@@ -19,6 +19,7 @@ Node.js 22 mit TypeScript-Type-Stripping (`docs/deployment.md:3-6`).
 docker build -t attack-verifier:local .
 docker run --rm -p 8080:8080 \
   -e NODE_ENV=production \
+  -e ATTACK_PUBLIC_BASE_URL=https://verifier.example.de \
   -e ATTACK_VERIFIER_KEY_PEM=/run/secrets/verifier-key.pem \
   -e ATTACK_VERIFIER_CERT_CHAIN_PEM=/run/secrets/verifier-chain.pem \
   -e ATTACK_ISSUER_TRUST_ANCHORS_PEM=/run/secrets/issuer-anchors.pem \

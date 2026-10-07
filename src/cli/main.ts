@@ -7,16 +7,23 @@
  *   npm run cli -- ocsp
  *   npm run cli -- ratelimit
  *   npm run cli -- doctor
+ *   npm run cli -- tenant add --id <id> --name <name> [--profile <vorlage>] [--ttl <s>] [--file <pfad>]
+ *   npm run cli -- tenant list [--file <pfad>]
+ *   npm run cli -- tenant revoke --id <id> [--file <pfad>]
  *
- * Das Werkzeug liest ausschließlich. Es startet keinen Dienst, es meldet sich
- * nicht beim Dienst an, es schreibt nichts und es verändert keine Konfiguration.
- * Es liest dieselben Umgebungsvariablen und ruft dieselben Funktionen auf wie
- * der Dienst beim Start, damit die Auskunft dem entspricht, was der Dienst
- * tatsächlich tun würde — nicht dem, was in der Doku steht.
+ * Die Diagnosebefehle lesen ausschließlich. Sie starten keinen Dienst, melden
+ * sich nicht beim Dienst an, schreiben nichts und verändern keine
+ * Konfiguration. Sie lesen dieselben Umgebungsvariablen und rufen dieselben
+ * Funktionen auf wie der Dienst beim Start, damit die Auskunft dem entspricht,
+ * was der Dienst tatsächlich tun würde, nicht dem, was in der Doku steht.
  *
- * Es gibt bewusst keinen Schreibbefehl. Registrierung, Trust-List-Änderung und
- * Ankerpflege bleiben ein Betriebsprozess, keine CLI-Aktion. Wer hier eine
- * Änderung braucht, braucht einen Prozess.
+ * Einzige Ausnahme ist `tenant`: Er schreibt genau eine Datei, die
+ * Mandantendatei (ATTACK_TENANTS_FILE oder --file), und sonst nichts. Er lädt
+ * keine Dienstkonfiguration und schaltet deshalb auch nie den
+ * Entwicklungsschalter ein; er funktioniert mit NODE_ENV=production. Der
+ * Klartext eines neuen API-Schlüssels erscheint genau einmal auf stdout und
+ * wird nirgends gespeichert. Registrierung, Trust-List-Änderung und
+ * Ankerpflege bleiben ein Betriebsprozess, keine CLI-Aktion.
  *
  * Ausgaben gehen nach stdout, Fehlermeldungen nach stderr. Rückgabewert 0
  * heißt "alles in Ordnung", 1 heißt "Befund", 2 heißt "Aufruf oder Konfiguration
@@ -42,10 +49,19 @@ import {
 } from '../config.ts';
 import { describeOnboardingState, loadAnchorsPem, resolveOnboardingGate } from '../onboarding/onboarding-wiring.ts';
 import { OcspRevocationChecker } from '../onboarding/ocsp-revocation.ts';
+import {
+  describeRevocationSources,
+  ENV_ATTACK_ISSUER_REVOCATION_SOURCES,
+  ENV_ATTACK_ONBOARDING_REVOCATION_SOURCES,
+  parseRevocationSources,
+} from '../onboarding/revocation-source.ts';
 import { resolveIssuerAnchors } from '../service/issuer-anchors.ts';
 import { certificateValidityFailure } from '../lib/cert-validity.ts';
 import { ROUTES } from '../service/app.ts';
 import { TenantStore } from '../service/tenant.ts';
+import { ENV_ATTACK_TENANTS_FILE } from '../service/tenant-file.ts';
+import { runTenantCommand } from './tenant-command.ts';
+import { REQUEST_PROFILE_TEMPLATES } from '../service/profile.ts';
 import { generateTestKeyMaterial } from '../decision-test/mock-wallet.ts';
 import { logger } from '../lib/logger.ts';
 
@@ -206,6 +222,17 @@ async function cmdStatus(env: Record<string, string | undefined>): Promise<numbe
   out(`  Port                ${config.port}`);
   out(`  Uhrabweichung       ${config.clockSkewSeconds} s (${ENV_ATTACK_CLOCK_SKEW_SECONDS})`);
   out(`  Ergebnis-TTL        ${config.resultTtlSeconds} s (${ENV_ATTACK_RESULT_TTL_SECONDS})`);
+  for (const [titel, schluessel] of [
+    ['Sperrung Aussteller', ENV_ATTACK_ISSUER_REVOCATION_SOURCES],
+    ['Sperrung Onboarding', ENV_ATTACK_ONBOARDING_REVOCATION_SOURCES],
+  ] as const) {
+    try {
+      out(`  ${titel.padEnd(19)} ${describeRevocationSources(parseRevocationSources(env, schluessel, config))} (${schluessel})`);
+    } catch (e) {
+      fehler(`  ${titel}: ${(e as Error).message}`);
+      befund = FINDING;
+    }
+  }
 
   kopf('Routen');
   for (const route of ROUTES) {
@@ -391,6 +418,8 @@ async function cmdDoctor(env: Record<string, string | undefined>): Promise<numbe
 async function main(): Promise<number> {
   const env = process.env;
   switch (befehl) {
+    case 'tenant':
+      return runTenantCommand(args.slice(1), env, { out, err: fehler });
     case 'status':
       return cmdStatus(env);
     case 'anchors':
@@ -406,7 +435,7 @@ async function main(): Promise<number> {
     case '-h':
       out(
         [
-          'Diagnose-CLI für den Verifier-Dienst. Alle Befehle sind lesend.',
+          'CLI für den Verifier-Dienst. Die Diagnosebefehle sind lesend.',
           '',
           '  status      Onboarding-Gate, Anker, Laufzeit und Routenübersicht',
           '  anchors     Zertifikate der Aussteller- und Onboarding-Anker im Detail',
@@ -414,8 +443,16 @@ async function main(): Promise<number> {
           '  ratelimit   aktuelle Rate-Limit-Werte und welche Routen betroffen sind',
           '  doctor      alle Prüfungen nacheinander, am Ende das Gesamturteil',
           '',
+          'Mandantenpflege (schreibt nur die Mandantendatei, nie etwas anderes):',
+          '',
+          '  tenant add --id <id> --name <name> [--profile <vorlage>] [--ttl <sekunden>] [--file <pfad>]',
+          '  tenant list [--file <pfad>]',
+          '  tenant revoke --id <id> [--file <pfad>]',
+          '',
+          `  Ohne --file gilt ${ENV_ATTACK_TENANTS_FILE}. Profilvorlagen: ${Object.keys(REQUEST_PROFILE_TEMPLATES).join(', ')}.`,
+          '  Der API-Schlüssel erscheint nur bei "add" und nur einmal. Gespeichert wird nur sein SHA-256-Hash.',
+          '',
           'Rückgabewert: 0 in Ordnung, 1 Beanstandung, 2 Aufruf unbrauchbar.',
-          'Es gibt bewusst keinen Schreibbefehl.',
         ].join('\n'),
       );
       return OK;

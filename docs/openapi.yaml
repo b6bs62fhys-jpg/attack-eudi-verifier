@@ -104,6 +104,9 @@ components:
           description: Signiertes JWT, vom Dienst selbst signiert
         responseUri: { type: string, format: uri }
         requestObjectUri: { type: string, format: uri }
+        walletUrl:
+          type: string
+          description: Aufruf für die Wallet als Link oder QR-Code (openid4vp://?client_id=...&request_uri=...&request_uri_method=get)
 
     ErgebnisStatus:
       type: object

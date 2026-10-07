@@ -47,6 +47,17 @@ export interface NewTenantInput {
   registration?: RegistrationMaterial;
 }
 
+/**
+ * Mandant mit bereits gehashtem Schlüssel. So legt der Dienst Mandanten aus der
+ * Mandantendatei an (`tenant-file.ts`): der Klartext existiert dort nie.
+ */
+export interface NewHashedTenantInput extends Omit<NewTenantInput, 'apiKey'> {
+  /** SHA-256-Hex des API-Schlüssels (64 Kleinbuchstaben/Ziffern). */
+  apiKeyHash: string;
+}
+
+const API_KEY_HASH = /^[0-9a-f]{64}$/;
+
 export function hashApiKey(apiKey: string): string {
   return createHash('sha256').update(apiKey).digest('hex');
 }
@@ -55,10 +66,21 @@ export class TenantStore {
   private readonly tenants = new Map<string, TenantConfig>();
 
   add(input: NewTenantInput): TenantConfig {
+    if (!input.apiKey || input.apiKey.length < 8) throw new Error('API-Schlüssel muss mindestens 8 Zeichen lang sein');
+    const { apiKey, ...rest } = input;
+    return this.addHashed({ ...rest, apiKeyHash: hashApiKey(apiKey) });
+  }
+
+  addHashed(input: NewHashedTenantInput): TenantConfig {
     const id = input.id.trim();
     if (!id || input.name.trim().length === 0) throw new Error('tenant id und name sind Pflicht');
-    if (!input.apiKey || input.apiKey.length < 8) throw new Error('API-Schlüssel muss mindestens 8 Zeichen lang sein');
+    if (!API_KEY_HASH.test(input.apiKeyHash)) throw new Error(`Mandant "${id}": API-Schlüssel-Hash ist kein SHA-256-Hex`);
     if (this.tenants.has(id)) throw new Error(`Mandant existiert bereits: ${id}`);
+    // Zwei Mandanten mit demselben Schlüssel wären bei der Anmeldung nicht zu
+    // unterscheiden: byApiKey würde den ersten Treffer liefern.
+    for (const other of this.tenants.values()) {
+      if (other.apiKeyHash === input.apiKeyHash) throw new Error(`Mandant "${id}": API-Schlüssel ist bereits einem anderen Mandanten zugeordnet`);
+    }
     let requestProfile: RequestProfile;
     try {
       requestProfile = resolveRequestProfile(input.requestProfile ?? 'pid_basis');
@@ -68,7 +90,7 @@ export class TenantStore {
     const config: TenantConfig = {
       id,
       name: input.name.trim(),
-      apiKeyHash: hashApiKey(input.apiKey),
+      apiKeyHash: input.apiKeyHash,
       requestProfile,
       accessCertificateTest: `TEST-ZugriffsZertifikat-Platzhalter-${id}`,
       registrationCertificateTest: `TEST-RegistrierungsZertifikat-Platzhalter-${id}`,

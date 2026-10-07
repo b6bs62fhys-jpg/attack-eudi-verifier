@@ -51,6 +51,7 @@ beforeAll(async () => {
   await writeFile(join(tmpDir, 'anchors.pem'), derToPem(issuer.certDerBytes, 'CERTIFICATE'));
   // „Echte Konfiguration": Verifier-Identität UND Aussteller-Anker (Haertung 5).
   identityEnv = {
+    ATTACK_PUBLIC_BASE_URL: 'https://verifier.example',
     [ENV_ATTACK_VERIFIER_KEY_PEM]: join(tmpDir, 'key.pem'),
     [ENV_ATTACK_VERIFIER_CERT_CHAIN_PEM]: join(tmpDir, 'chain.pem'),
     [ENV_ATTACK_ISSUER_TRUST_ANCHORS_PEM]: join(tmpDir, 'anchors.pem'),
@@ -145,7 +146,9 @@ function runService(env: Record<string, string>, waitFor?: RegExp): Promise<{ co
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--experimental-strip-types', 'src/service/run.ts'], {
       cwd: process.cwd(),
-      env: { PATH: process.env.PATH ?? '', ...env },
+      // Im Produktionsmodus ist ATTACK_PUBLIC_BASE_URL Pflicht. Die Tests hier
+      // prüfen andere Abbruchgründe und setzen sie deshalb wie im echten Betrieb.
+      env: { PATH: process.env.PATH ?? '', ATTACK_PUBLIC_BASE_URL: 'https://verifier.example', ...env },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stdout = '';
