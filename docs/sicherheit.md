@@ -1,297 +1,249 @@
-# Sicherheitsdurchsicht (docs/sicherheit.md)
+# Sicherheit
 
-**Nachtrag 25.09.2026 (Branch `ocsp-sperrpruefung-2026-09-25`)**: Die
-Aussteller-Zertifikatskette vorgelegter Credentials wird jetzt per OCSP
-(RFC 6960) geprüft; der Platzhalter `revocationPolicy: 'skip'` ist entfernt.
-Belege, Abgrenzung zu CRL und Token Status List sowie die freigegebene
-Gnadenfrist von 24 Stunden stehen in Abschnitt 5a und in
-[interne Notiz, nicht veröffentlicht].
+English version: [security.md](security.md)
 
-**Historischer Stand 22.09.2026 für Branch `phase1`.** Für den aktuellen Stand `vereinigung-2026-09-25` gelten `docs/konformitaet.md`, [interne Notiz, nicht veröffentlicht] und [interner Bericht, nicht veröffentlicht]; insbesondere sind die dort genannten JWE-, DCQL- und Flow-Erweiterungen nicht in diesem historischen Bericht enthalten.
+Dieses Dokument beschreibt, welche Sicherheitseigenschaften der Dienst im Code
+umsetzt, wie sie getestet sind und welche Lücken bekannt sind. Es richtet sich
+an Entwicklerinnen und Entwickler sowie Sicherheitsverantwortliche, die den
+Dienst vor einer Pilotierung bewerten.
 
-Stand: 22.09.2026 · Umfang: Schritt 4 des Auftrags (Prototyp, Branch `phase1`).
-
-**Nachtrag (Branch `feature/interop-und-haertung`, Teil 1+2)**: der Dienst unterstützt jetzt `application/x-www-form-urlencoded` als zweites `direct_post`-Eingabeformat sowie JWE-verschlüsselte Antworten (`direct_post.jwt`, Entschlüsselung ausschließlich über die Bibliothek, ECDH-ES + A128GCM/A256GCM). Für Zugriffs-/Registrierungszertifikate existiert ein optionaler Sperrprüf-Erweiterungspunkt (`RevocationChecker`); der Prototyp liefert eine TEST-Mock-Sperrliste (Fingerprint-basiert). Beides ist abwärtskompatibel (Default unverändert) und durch 89 Tests abgedeckt. Alle Aussagen gelten für diesen Prototyp und sind keine Produktionszusage.
+Schwachstellen bitte vertraulich melden, siehe [SECURITY.md](../SECURITY.md).
 
 ## 1. Zusammenfassung
 
-- `npm audit`: **0 Schwachstellen** auf dem aufgelösten Abhängigkeitsbaum (Stand des Locks, Details siehe unten).
-- Geheimnisse: **keine gefunden** — in Quelltext, Git-Historie oder (nicht vorhandenen) Logs liegen keine echten Schlüssel, Zertifikate oder Zugangsdaten.
-- Grundsatz des Prototyps eingehalten: ausschließlich TEST-Material im Arbeitsspeicher, nie auf der Platte, nie in Logs. API-Schlüssel werden nur als SHA-256-Hash gespeichert (`src/service/tenant.ts`).
-- **Ehrliche Einordnung**: Es gibt keine externe Sicherheitsprüfung dieser Codebasis und (Stand des Vergleichs) kein externes Audit von `@openeudi/openid4vp`. Der Prototyp ist ein Machbarkeitsnachweis, kein Produktivsystem.
+- **Prototyp, nicht für den Produktionsbetrieb.** Es gibt keine externe
+  Sicherheitsprüfung dieser Codebasis, keinen Penetrationstest und keine
+  Zertifizierung. Zum Zeitpunkt der Bibliotheksauswahl lag auch kein externes
+  Audit der Protokollbibliothek `@openeudi/openid4vp` vor.
+- **Teststand.** Der Dienst wurde Ende zu Ende ausschließlich gegen die
+  Mock-Wallet dieses Repositorys getestet. Mit einer echten Wallet, einer
+  Sandbox (auch nicht der SPRIND-Sandbox) oder einer nationalen Wallet wurde er
+  noch nicht getestet. Einzelheiten: [Interoperabilitätsmatrix](interop-matrix.md).
+- **Abhängigkeiten.** `npm audit` meldet für das committete `package-lock.json`
+  0 Schwachstellen. Die CI führt `npm audit --audit-level=high` bei jedem Push
+  und jedem Pull Request aus.
+- **Geheimnisse.** Im Repository liegen keine echten Schlüssel, Zertifikate oder
+  Zugangsdaten. Im Entwicklungsbetrieb entsteht sämtliches Schlüsselmaterial als
+  TEST-Material im Arbeitsspeicher und wird weder gespeichert noch geloggt.
 
-## 2. `npm audit`
+## 2. Was der Dienst umsetzt
 
-Ausführung: `npm audit` mit dem aktuellen `package-lock.json` (exakte Versionen, committet).
-
-```
-found 0 vulnerabilities
-```
-
-## 3. Suche nach Geheimnissen
-
-Methode: regex-basierter Scan über alle Dateien inkl. Git-Historie, ausgeschlossen `node_modules/`, `.git/`, `package-lock.json`. Suchmuster u. a. `BEGIN … PRIVATE KEY`, `sk_live_/sk_test_`, `AKIA…`, `AIza…`, `aws_access_key`, `password=`, `ghp_…`, `Bearer <40+ Zeichen>`.
-
-Ergebnis: **keine Treffer**.
-- Es sind keine `.pem`, `.key`, `.env`- oder Secret-Dateien versioniert.
-- `git ls-files` und `git log` enthalten keinen `node_modules/`.
-- Logs existieren nicht persistent (STDOUT nur; Demo- und Servicelogs wurden beim Testlauf sofort gelöscht und sind nicht eingecheckt).
-- Die im Prototyp verwendeten API-Schlüssel (`test-api-key-tenant-A/B`) und die in `src/decision-test/mock-wallet.ts` erzeugten Zertifikate sind eindeutig als TEST markiert; die API-Schlüssel stehen nirgends als Klartext im Code außer in `run.ts` (Bootstrap) und in den Tests — genau dort, wo sie als Dummy gebraucht werden.
-
-## 4. Abhängigkeiten und Lizenzen (installierte, gehoistete Top-Level mit Transitivem)
-
-45 eindeutige Pakete. Eine vollständige Liste wird hier nicht dupliziert; die prüfbare Quelle ist `package-lock.json` (committet) und `node_modules/<paket>/package.json`. Die direkten Abhängigkeiten des Projekts (diese Liste ist verantwortet):
-
-| Paket | Version | Lizenz | Zweck |
-|---|---|---|---|
-| `@openeudi/openid4vp` | 0.11.1 | Apache-2.0 | OpenID4VP/DCQL/SD-JWT-/KB-Prüfung, signierte Request Objects |
-| `@openeudi/core` | 0.8.0 | Apache-2.0 | Session-/Demomaterial der OpenEUDI-Organisation |
-| `@openeudi/dcql` | 0.2.0 | Apache-2.0 | DCQL-Typen/Prüfung |
-| `jose` (dev) | 6.1.3 | MIT | JWT-Erzeugung/-Prüfung (auch transitive Abhängigkeit der Bibliothek) |
-| `@peculiar/x509` (dev) | 2.1.0 | MIT | TEST-Zertifikate (auch Abhängigkeit der Bibliothek) |
-| `typescript`, `@types/node` (dev) | 5.7.2 / 22.10.2 | Apache-2.0 / MIT | Typecheck |
-
-Wichtige transitive Pakete mit Lizenzen: `asn1js`/`bytestreamjs`/`pkijs`/`js-base64` (BSD-3-Clause), `@xmldom/xmldom`, `xadesjs`, `xmldsigjs`, `cbor-x`, `uuid`, `pvtsutils`, `pvutils`, `tslib` (0BSD), `reflect-metadata`, `tsyringe`, `@sd-jwt/*` (Apache-2.0), `detect-libc` (Apache-2.0). Vollständig per Befehl prüfbar (Abschnitt 7).
-
-## 5. Bekannte Lücken und offene Punkte (ehrlich dokumentiert)
-
-1. **Prototyp-Architektur**: Alle Zustände (Sitzungen, Ergebnisse, Mandanten, Audit-Log) liegen nur im Arbeitsspeicher. Neustart löscht alles. Für jede gehostete Umsetzung (Stufe 2 des Plans) sind Persistenz, Backup und Ablaufprozesse neu zu entwerfen.
-2. **TLS/Deployment**: Der Dienst läuft roh über HTTP auf 127.0.0.1. Keine TLS-Terminierung, kein Reverse-Proxy, kein Container, keine Betriebskonfiguration.
-3. **`direct_post`-Interop (Teil 1, jetzt verringert)**: Der Dienst akzeptiert zusätzlich zu `application/json` auch `application/x-www-form-urlencoded` (Envelope-Felder `vp_token`/`state`; `vp_token` als JSON-Objekt, JSON-Array oder roher SD-JWT-String — Roh-Werte werden in den DCQL-Envelope gewickelt, siehe `src/service/app.ts`) und JWE-verschlüsselte Antworten (`response=<JWE>` form- oder `{"response":"…"}` JSON). Die Entschlüsselung läuft über `decryptAuthorizationResponse` der Bibliothek; die Prüfung verschlüsselter Antworten ist nur mit `encryptionKey` aktiv, sonst bleibt der Altpfad intakt. **Offen bleibt**: Interop mit einer echten Sandbox-Wallet ist mangels Sandbox-Zugang nicht geprüft (siehe [interne Notiz, nicht veröffentlicht]).
-4. **Verifier-Identität**: Request Objects werden mit selbstsignierten TEST-Zertifikaten signiert (`allowSelfSignedCertificate: true`). Profilkonforme Wallets (HAIP 1.0) würden diese Verifier-Identität ohne gültiges Zugriffs- und Registrierungszertifikat ablehnen. Der Live-Durchlauf hängt damit am Registry-/Zertifikatsthema (Registrar ausstehend).
-5. **Trust-Pfad und Sperrprüfung**: **Stand ocsp-sperrpruefung-2026-09-25**: Issuer-Zertifikate der vorgelegten Credentials werden per OCSP (RFC 6960) geprüft (`src/onboarding/ocsp-revocation.ts`, verdrahtet in `src/service/bootstrap.ts:80-88`); die Bibliothek läuft nur noch mit `revocationPolicy: 'prefer'` als Zweitinstanz (`src/service/service.ts:493`). Details, Abgrenzung und bekannte Nachteile: Abschnitt 5a. **Stand Haertung 1 (2026-09-25)**: Die Sperrprüfung für WRPAC/WRPRC ist Pflicht und fail closed (`src/onboarding/revocation.ts`, `enforceRevocation`); `NO_REVOCATION` ist nur mit `ATTACK_DEV_MODE=true` außerhalb von Produktion zulässig. Echte Quelle dort: `CrlRevocationChecker` (CRL nach RFC 5280). Credentials werden über eine Token Status List geprüft (`src/service/credential-status.ts`). Fehlercodes: `docs/fehlercodes.md`.
-   **Weiterhin offen (ehrlich)**: (a) `CrlRevocationChecker` ist implementiert und getestet, aber im Dienststart nicht verdrahtet — das Onboarding-Gate ist standardmäßig nicht aktiv, die WRPAC/WRPRC-Sperrprüfung greift also erst, wenn ein Gate konfiguriert wird. (b) Für OCSP gibt es noch keinen Nachweis gegen einen echten produktiven Responder, alle Tests laufen gegen einen lokalen Mock. (c) Die Bibliothek schreibt bei OCSP-Fehlern Zertifikat-Subjects nach `console.warn`; das ist nicht abstellbar und in Abschnitt 5a als Nachteil festgehalten. (d) Es gibt keine CRL-Anbindung an den Issuer-Pfad; der Bibliothekspfad bietet sie, sie ist aber nicht der entscheidende Mechanismus.
-6. **Keine Schutzmechanismen des Betriebs**: kein Rate-Limiting, keine CSRF/Token-Härtung für die Demo-Seite, keine separaten Prozessrechte, keine Secret-Verwaltung (KMS/HSM). Zugriffs- und Registrierungszertifikate sind bisher nur Platzhalter.
-7. **`mso_mdoc`-Pfad fehlt**: Es wird ausschließlich der SD-JWT-VC-Pfad (Falster A) unterstützt. mdoc (Plan-Stufe 2) ist nicht umgesetzt.
-8. **Transitive Deprecations**: `@sd-jwt/decode@0.19.0`, `@sd-jwt/types@0.19.0`, `@sd-jwt/utils@0.19.0` (als Abhängigkeit von `@openeudi/openid4vp`) sind als deprecated markiert (Merge zu `@sd-jwt/core` ≥ 0.20.0 mit Security-Hinweis GHSA-f9j6-8p6x-r9j6). Der Prototyp nutzt die Bibliothek, nicht `@sd-jwt/*` direkt; beim Wechsel auf eine neuere `@openeudi/*`-Version sollte die Deprecation mit verfolgt werden.
-9. **Zweit-Journal `xadesjs`/`xmldsigjs`/`@xmldom/xmldom`**: XML-Signatur-Bibliotheken (LOTL-Verarbeitung der Bibliothek) sind Altlasten-Komponenten mit teils älteren Pfaden; hier nicht aktiv genutzt. Ohne Audit-Befund (npm audit: 0).
-10. **Kein externes Audit / keine OIDF-CI-Replay im Repo**: Der Weg über die offizielle OIDF-Konformitätssuite der Bibliothek ist geprüft laut deren CI ([interne Notiz, nicht veröffentlicht]), aber nicht im eigenen Repo wiederholt. Ein eigener Replay-Lauf wäre eine Option für später (offen).
-
-## 5a. Sperrprüfung: welcher Mechanismus wofür (Stand 2026-09-25)
-
-Es gibt drei verschiedene Sperrmechanismen. Sie prüfen **nicht dasselbe** und
-werden **nicht** für denselben Zertifikatstyp gleichzeitig herangezogen.
-
-| Mechanismus | Gilt für | Implementierung | Quelle im Code |
-| --- | --- | --- | --- |
-| **OCSP** (RFC 6960) | Aussteller-Zertifikate der vorgelegten Credentials (Blatt und Intermediate bis zum Anker) | `OcspRevocationChecker` | `src/onboarding/ocsp-revocation.ts`, verdrahtet in `src/service/bootstrap.ts:80-88` |
-| **CRL** (RFC 5280) | Onboarding-Zertifikate WRPAC/WRPRC (Blatt und Intermediate) | `CrlRevocationChecker` | `src/onboarding/crl-revocation.ts`, aufgerufen über `enforceRevocation` in `src/onboarding/wrpac.ts:140` und `src/onboarding/wrprc.ts:131` |
-| **Token Status List** (IETF draft-ietf-oauth-status-list) | Der **Inhalt** eines Credentials (das Zertifikat selbst wird davon nicht berührt) | `TokenStatusListChecker` | `src/service/credential-status.ts:118`, aufgerufen in `src/service/service.ts:538` (Aufruf)  |
-
-### Warum es keine Überschneidung zwischen OCSP und CRL gibt
-
-OCSP und CRL prüfen **verschiedene Zertifikatstypen**, nicht dieselben:
-
-- OCSP wird nur für die x5c-Kette des Issuer-JWT aufgerufen
-  (`src/service/service.ts:520-531` -> `enforceIssuerChainRevocation` in
-  `src/service/issuer-revocation.ts:40`). Diese Kette endet am konfigurierten
-  Aussteller-Anker. Der Anker selbst wird nie geprüft, das ist der Vertrag von
-  `RevocationChecker.checkRevoked` (`src/onboarding/revocation.ts:40`).
-- CRL wird nur für die Onboarding-Kette aufgerufen (WRPAC-Zugriffszertifikat,
-  WRPRC-Registrierungsnachweis). Diese Prüfung läuft im Onboarding-Gate, nicht
-  im Präsentationspfad, und greift nur, wenn ein Gate konfiguriert ist
-  (`src/onboarding/onboarding-gate.ts:81`).
-- Die Token Status List prüft weder Zertifikate noch Issuer, sondern den
-  Statuswert `status_list.idx` im Issuer-Payload (`credential-status.ts:162-170`).
-  Sie ist damit auch keine Alternative zu OCSP, sondern eine Ergänzung: das
-  Zertifikat kann gültig und ungesperrt sein, während das Credential selbst
-  auf der Statusliste steht.
-
-### Die einzige echte Überschneidung: die Prüfbibliothek
-
-Es gibt genau eine Stelle, an der zwei Mechanismen auf dasselbe Zertifikat
-treffen können: der Dienst ruft die Bibliothek mit
-`revocationPolicy: 'prefer'` (`src/service/service.ts:493`), und die
-Bibliothek prueft intern selbst OCSP **und** faellt auf CRL zurueck
-(`node_modules/@openeudi/openid4vp/dist/index.js:7917-7927`).
-
-**Vorrang: unser eigener OCSP-Checker entscheidet, die Bibliothek kann nur
-ablehnen.**
-
-Das ist so umgesetzt und belegt:
-
-**Reihenfolge im Code** (belegt, nicht behauptet): Der Bibliotheksaufruf
-`verifyAuthorizationResponse` steht in `processPresentation` bei
-`src/service/service.ts:474`, der eigene OCSP-Check bei
-`src/service/service.ts:526`, der Credential-Status bei
-`src/service/service.ts:538`. Die Bibliothek laeuft also zuerst, die
-verbindliche Entscheidung faellt danach.
-
-**Warum der eigene Checker trotzdem den Vorrang hat:**
-
-1. Die Bibliothek laeuft mit `'prefer'`, nicht `'require'`. Bei `'require' wuerde
-   sie selbst `RevocationCheckFailedError` werfen, wenn ihr OCSP-Responder
-   nicht erreichbar ist (`dist/index.js:7958-7961`) — das wuerde die
-   freigegebene Option B (24 Stunden Gnadenfrist) wieder aushebeln. Mit
-   `'prefer'` gibt sie bei Ausfall `unknown` zurueck, und `TrustEvaluator` wirft
-   dann **nicht** (`dist/index.js:8169-8175` wirft nur bei `revoked`).
-2. Eine Annahme kann deshalb nur aus dem eigenen Checker kommen: die
-   Bibliothek kann durch `revoked` ablehnen, aber nicht freigeben. Ein
-   `RevokedCertificateError` fuehrt weiterhin zur Ablehnung
-   (`code = "certificate_revoked"`, `dist/index.js:98-100`, ->
-   `issuer_certificate_revoked`, `src/service/limits.ts:76`).
-3. Umgekehrt kann der eigene Checker die Bibliothek nicht ueberstimmen: er
-   entscheidet danach und lehnt unabhaengig ab, unter anderem auch dann, wenn
-   die Bibliothek `good` gemeldet hat. Testbeleg: "gesperrtes
-   Aussteller-Zertifikat -> Praesentation abgelehnt
-   (issuer_certificate_revoked)" in `src/service/issuer-revocation.test.ts`.
-4. Die Reihenfolge ist bewusst so gewaehlt und nicht umgekehrt: der eigene
-   Check steht hinter der Kettenpruefung der Bibliothek, damit OCSP nicht fuer
-   Zertifikate aus einer noch nicht vertrauenswuerdigen Kette abgefragt wird.
-
-Bekannte Nachteile dieser Zweitpruefung, bewusst in Kauf genommen und hier
-festgehalten:
-
-- **Doppelte Abfrage.** Beide Instanzen fragen beim Responder an. Eigener Cache
-  (`nextUpdate`, 24-h-Obergrenze) auf der einen, `InMemoryCache` der
-  Bibliothek auf der anderen Seite. Bei jeder Praesentation mit leerem
-  Bibliothekscache kommt ein zweiter HTTP-Abruf hinzu.
-- **Schwaecherer Zweitpfad.** Der Bibliotheks-OCSP-Client sendet keine Nonce
-  (`dist/index.js:7602-7620`) und setzt keine Zeit- oder Groessengrenze. Er ist
-  deshalb **nicht** die entscheidende Instanz, sondern nur ein zusaetzliches
-  Ablehnungssignal.
-- **`console.warn` der Bibliothek** — **gelöst** durch den Logfilter aus
-  `src/lib/library-log-filter.ts`, siehe den Abschnitt "Logfilter für die
-  Warnungen der Bibliothek" oben. Die dortige Formulierung "verstoesst gegen
-  die eigene Regel" galt fuer das Betriebslog; sie ist mit dem Filter nicht mehr
-  zutreffend.
-
-### Logfilter für die Warnungen der Bibliothek (bewusster Eingriff)
-
-Die Bibliothek meldet den Fehlschlag ihres eigenen OCSP-Versuchs selbst nach
-`console.warn` und schreibt dabei Subject, Responder-URL und rohe
-Fehlermeldung in den Prozesslog (`dist/index.js:7921`, `:7951`; die Meldung
-bei `:7748` enthält zusätzlich die Seriennummer). Das verletzt die
-Anforderung, dass keine Anspruchswerte im Log landen — und es geschieht
-gerade dann, wenn ein Responder ausfällt, also im Betriebsfall, den die
-Gnadenfrist abfedern soll.
-
-Die Bibliothek bietet dafür **keinen** Schalter: kein Logger-Parameter, keine
-`NODE_ENV`-Logik, nur ein einziger Export-Einstiegspunkt (geprüft in
-`node_modules/@openeudi/openid4vp`). Deshalb gibt es
-`src/lib/library-log-filter.ts`, installiert einmalig beim Prozessstart
-(`src/service/run.ts`):
-
-- Umhüllt wird ausschließlich `console.warn`; `error`, `log` und `info`
-  bleiben unberührt (Test: "console.error und console.log werden nicht verändert").
-- Unterdrückt wird ausschließlich, wenn das **erste** Argument eine
-  Zeichenkette ist, die mit `[openid4vp]` beginnt. Alle sechs Warnstellen der
-  Bibliothek schreiben genau so.
-- Kein Zustand, kein Puffer: alle anderen Warnungen gehen unverändert und mit
-  allen Argumenten weiter. Die eigenen Dev-Modus-Warnungen aus `src/config.ts`
-  und `src/service/bootstrap.ts` bleiben sichtbar (Test: "die Dev-Modus-Warnungen
-  aus config.ts erreichen das Log weiterhin").
-- End-to-End belegt: "Gegenprobe: ohne Filter schreibt die Bibliothek bei
-  OCSP-Ausfall nach console.warn" zeigt die echte Bibliothekszeile mit
-  Subject im Log, "mit installiertem Filter bleibt von derselben Präsentation
-  keine Bibliothekszeile im Log" zeigt, dass sie entfällt.
-
-**Bewusste Grenze des Eingriffs:** Die Umhüllung gilt prozessweit, also auch
-für Code, der den Filter nicht kennt, und ein gleichzeitiges Umschreiben von
-`console.warn` durch Fremdcode würde nicht bemerkt. Deshalb wird der Filter
-genau einmal beim Start installiert und `restore` stellt exakt dieselbe
-Funktion wieder her (Test: "restore stellt den ursprünglichen Zustand wieder her").
-
-### Überwachung: Präfixbindung des Logfilters (B11)
-
-Der Filter ist an **zwei** Annahmen gebunden, und keine davon wird von einem Test abgesichert:
-
-1. Alle Ausgaben der Prüfbibliothek gehen über `console.warn`.
-2. Alle beginnen mit dem Präfix `[openid4vp]` (`src/lib/library-log-filter.ts:41`).
-
-Beide können sich durch ein Update von `@openeudi/openid4vp` ändern. Der Filter
-wird dann **nicht** zu breit, sondern zu **eng**: er greift stillschweigend
-nicht mehr, und Subject, Responder-URL und Seriennummer landen wieder im
-Prozesslog. Niemand bemerkt das ohne Nachsehen, weil kein Test die Bibliothek
-liest.
-
-**Deshalb: nach jedem Update von `@openeudi/openid4vp` den Abgleich wiederholen.**
-
-```bash
-# Das Prüfskript ist nicht Teil der öffentlichen Kopie.
-```
-
-Das Werkzeug liest das Präfix aus dem Filter selbst, listet alle
-`console.*`-Aufrufe der Bibliothek auf und vergleicht zeilenweise. Ausgabe
-und Exit-Code:
-
-| Exit | Bedeutung | Handlung |
+| Eigenschaft | Umsetzung | Beleg |
 |---|---|---|
-| `0` | Filter deckt alle Ausgaben ab | nichts zu tun |
-| `1` | Abweichung: N Ausgaben ohne Präfix | Präfix anpassen oder Meldung einzeln bewerten (enthält sie Zertifikatsdaten?) |
-| `2` | Werkzeugfehler (Datei fehlt) | Dependencies installieren |
+| Start nur mit sicherer Konfiguration (fail closed) | Ohne echte Verifier-Identität (`ATTACK_VERIFIER_KEY_PEM`, `ATTACK_VERIFIER_CERT_CHAIN_PEM`) und ohne Aussteller-Anker (`ATTACK_ISSUER_TRUST_ANCHORS_PEM`) bricht der Start mit Exit Code 1 ab. Testmaterial, Testmandanten und abgeschaltete Prüfungen gibt es nur mit `ATTACK_DEV_MODE=true` außerhalb von `NODE_ENV=production`, jeweils mit deutlicher Warnung. `ATTACK_ALLOW_SELF_SIGNED=true` ist in Produktion verboten. | `bootstrapService` in `src/service/bootstrap.ts`, `loadConfig` in `src/config.ts`; Test `src/service/produktionsschalter.test.ts` |
+| API-Schlüssel | Je Mandant ein serverseitiger Schlüssel als `authorization: Bearer`. Gespeichert wird nur der SHA-256-Hash. | `src/service/tenant.ts` |
+| Mandantentrennung | Eine Sitzung eines fremden Mandanten ist nicht von einer unbekannten zu unterscheiden (`not_found`). | [Fehlercodes](fehlercodes.md) |
+| Replay-Schutz | `state` und Nonce je Sitzung; eine Sitzung kann genau einmal eine Präsentation annehmen, ein zweiter Versuch endet mit `session_reused`. | `src/lib/session.ts`; Test `src/service/fehlerbilder.test.ts` |
+| Ergebnis genau einmal | Ein fertiges Ergebnis wird genau einmal ausgeliefert und danach entfernt; ohne Abruf verfällt es nach 60 Sekunden (einstellbar). | Test `src/service/ergebnis-einmal.test.ts` |
+| Datensparsamkeit | Das Ergebnis enthält nur die angefragten Claims, auch wenn das Credential mehr trägt. | `nurAngefragteClaims` in `src/service/profile.ts`; Test `src/service/e2e-vollablauf.test.ts` |
+| Verschlüsselte Antworten | `direct_post.jwt` mit `ECDH-ES` und `A128GCM` oder `A256GCM`, frisches Schlüsselpaar je Sitzung. Die Entschlüsselung übernimmt die Bibliothek. | `src/onboarding/jar.ts`, `src/service/service.ts`; Test `src/service/jar-parity.test.ts` |
+| Eingabegrenzen | Body höchstens 64 KiB, `vp_token` höchstens 32 KiB, JWE höchstens 48 KiB, höchstens 64 Disclosures, höchstens 32 Claims je Anfrage. | `src/service/limits.ts`; Test `src/service/fehlerbilder.test.ts` |
+| Feste Fehlercodes | Antworten tragen feste Codes, nie Rohmeldungen aus Bibliotheken oder Ausnahmen. | `presentationErrorCode` in `src/service/limits.ts`, [Fehlercodes](fehlercodes.md) |
+| Ratenbegrenzung | Je Prozess: 120 Anfragen je 60 Sekunden auf öffentlichen Routen, 60 je Mandant (Standardwerte, einstellbar über `ATTACK_RATE_LIMIT_*`). | `src/service/rate-limit.ts`, `src/config.ts`; Test `src/service/rate-limit.test.ts` |
+| HTTP-Header | `x-content-type-options: nosniff`, `cache-control: no-store`, `x-frame-options: DENY` auf jeder Antwort; bewusst kein CORS. TLS und HSTS gehören in den Reverse Proxy. | `setzeSicherheitsHeader` in `src/service/app.ts`; Test `src/service/security-headers.test.ts`; [Deployment](deployment.md) |
+| Logs ohne personenbezogene Daten | Strukturierte Logs ohne Claim-Werte; das Audit-Log enthält nur Zeitstempel, Mandant und Ereignisname. | `src/lib/logger.ts`, `src/service/audit.ts`; Tests `src/service/log-ohne-claims.test.ts`, `src/service/audit-inhalt.test.ts` |
+| Container | Das `Dockerfile` startet den Dienst als Benutzer `node`, nicht als root. | `Dockerfile` |
 
-Aktueller Stand (Commit siehe [interne Notiz, nicht veröffentlicht], B11):
-6 Ausgaben, alle mit Präfix, 0 Abweichungen.
+## 3. Vertrauen und Sperrprüfung
 
-Das Werkzeug benutzt bewusst `grep -F` und nicht `grep -E`: mit `-E` wäre
-`[openid4vp]` eine Zeichenklasse, der Vergleich wäre blind und würde jede
-Änderung als „ok" melden. Genau dieser Fehler war in der ersten Fassung
-vorhanden und wurde durch eine Negativprobe aufgedeckt (Präfix künstlich auf
-`[openid4vp-core` gesetzt: korrektes Werkzeug meldet 6 Abweichungen und
-Exit 1).
+### Welcher Mechanismus wofür
 
-Bekannte, bewusst nicht abgesicherte Randfälle: Warnungen über
-`process.emitWarning`, `process.stdout.write` oder `console.debug` fallen
-ebenfalls durch das Raster. Das Werkzeug listet `console.debug` und
-`console.trace` mit auf, erkennt aber keine anderen Kanäle; für
-`process.emitWarning` gibt es bisher keinen Beleg in der Bibliothek
-(`grep -c emitWarning` = 0).
+| Mechanismus | Gilt für | Stand |
+|---|---|---|
+| **Aussteller-Vertrauensanker** | Kette des Ausstellerzertifikats im Credential | Nur ausdrücklich konfigurierte Anker. Keine Trust List nach ETSI TS 119 612 (LOTL). |
+| **OCSP** (RFC 6960) | Ausstellerzertifikate der vorgelegten Credentials, Blatt und Zwischenzertifikate bis zum Anker; der Anker selbst wird nicht geprüft | `OcspRevocationChecker` in `src/onboarding/ocsp-revocation.ts`, beim Start verdrahtet in `src/service/bootstrap.ts`. Getestet nur gegen einen lokalen Test-Responder. |
+| **Token Status List** | Der Status des Credentials selbst, nicht des Zertifikats | `TokenStatusListChecker` in `src/service/credential-status.ts`, beim Start verdrahtet. Gegen echte Status-List-Aussteller nicht erprobt. |
+| **CRL** (RFC 5280) | vorgesehen für Zugriffs- und Registrierungszertifikate (WRPAC, WRPRC) | `CrlRevocationChecker` in `src/onboarding/crl-revocation.ts` ist implementiert und getestet, **wird beim Start aber nirgends eingesetzt.** |
+| **Onboarding-Gate** (WRPAC, WRPRC) | Zugriffs- und Registrierungszertifikate der Relying Party | Nur aktiv, wenn `ATTACK_ONBOARDING_ACCESS_CA_PEM` und `ATTACK_ONBOARDING_WRPRC_ISSUER_PEM` gesetzt sind. Ist das Gate aktiv, prüft es die Sperrung über denselben OCSP-Prüfer. Ohne Gate meldet `/ready` im Produktionsbetrieb `onboarding: failed`. |
 
-### Bewusster Kompromiss: Nonce ist nicht verpflichtend (OCSP-Antwort)
+Im Entwicklungsbetrieb (`ATTACK_DEV_MODE=true`) sind OCSP und Token Status List
+abgeschaltet; der Dienst warnt beim Start ausdrücklich davor.
 
-Unser OCSP-Client sendet **immer** eine Nonce (16 Zufallsbytes,
-`src/onboarding/ocsp-revocation.ts:217` und `:241`), und eine Antwort, die eine
-Nonce **beantwortet**, muss exakt der gesendeten entsprechen — zeitkonstant,
-sonst `revocation_list_malformed` (`:319`).
+### Verhältnis zur Prüfung in der Bibliothek
 
-**Antwortet ein Responder nicht mit einer Nonce, wird das akzeptiert.** Das ist
-eine bewusste Entscheidung, kein Versehen, und im Kopfkommentar von
-`src/onboarding/ocsp-revocation.ts` (Schritt 6) festgehalten.
+Die Bibliothek `@openeudi/openid4vp` prüft beim Aufruf von
+`verifyAuthorizationResponse` selbst die Sperrung (zuerst OCSP, dann CRL als
+Rückfall). Der Dienst ruft sie mit `revocationPolicy: 'prefer'` auf und führt
+danach seine eigene OCSP-Prüfung aus (`enforceIssuerChainRevocation` in
+`src/service/issuer-revocation.ts`). Daraus folgt:
+
+1. Mit `'prefer'` meldet die Bibliothek bei nicht erreichbarem Responder den
+   Status `unknown` und lehnt nicht ab. Sie lehnt nur bei `revoked` ab. Die
+   Bibliothek kann also ablehnen, aber nicht freigeben.
+2. Die verbindliche Entscheidung trifft die eigene Prüfung danach. Sie lehnt
+   auch dann ab, wenn die Bibliothek `good` gemeldet hat. Test: „gesperrtes
+   Aussteller-Zertifikat -> Präsentation abgelehnt (issuer_certificate_revoked)“
+   in `src/service/issuer-revocation.test.ts`.
+3. Die eigene Prüfung läuft bewusst nach der Kettenprüfung der Bibliothek,
+   damit OCSP nicht für Zertifikate aus einer nicht vertrauenswürdigen Kette
+   abgefragt wird.
+
+Bekannte Nachteile dieser doppelten Prüfung:
+
+- **Doppelte Abfrage.** Bei leerem Cache der Bibliothek fragen beide Instanzen
+  beim Responder an.
+- **Schwächere Zweitprüfung.** Der OCSP-Client der Bibliothek sendet keine
+  Nonce und setzt keine eigene Zeit- oder Größengrenze. Er ist deshalb nur ein
+  zusätzliches Ablehnungssignal, nicht die entscheidende Instanz.
+
+### Nonce in OCSP-Antworten ist nicht Pflicht
+
+Der eigene OCSP-Client sendet immer eine Nonce (16 Zufallsbytes). Enthält die
+Antwort eine Nonce, muss sie exakt passen (zeitkonstanter Vergleich), sonst
+`revocation_list_malformed`. **Antwortet ein Responder ohne Nonce, wird das
+akzeptiert.**
 
 | | |
 |---|---|
-| **Begründung** | Nicht alle OCSP-Responder beantworten die Nonce-Erweiterung; RFC 6960 behandelt sie als optional. Eine Pflicht dazu hätte in der Praxis echte Interop-Ausfälle verursacht, weil eine große Zahl verbreiteter Responder sie ignoriert. |
-| **Verbleibendes Risiko** | Bei Respondern ohne Nonce-Unterstützung bleibt eine **theoretische Replay-Lücke**: eine aufgezeichnete, echte `good`-Antwort kann zeitversetzt wieder eingespielt werden. Sie ist auf das Zeitfenster der Antwort begrenzt und nicht mit einer Fälschung verbunden. |
-| **Kompensierende Kontrolle** | Strenge Zeitbindung: `thisUpdate` darf nicht in der Zukunft liegen, `nextUpdate` ist **Pflicht** (ohne sie `revocation_list_expired`), und ein überschrittenes `nextUpdate` wird abgelehnt (`assertFresh`, `:344-350`). Zusätzlich begrenzt der Cache die Wiederverwendung auf `min(nextUpdate, jetzt + 24 h)`. |
-| **Test** | "Responder ohne Nonce -> akzeptiert, Zeitbindung gilt (Dokumentierte Ausnahme)" sowie "falsche Nonce in der Antwort -> revocation_list_malformed (Replay abgewehrt)" in `src/onboarding/ocsp-revocation.test.ts`. |
-| **Wenn strenger gewünscht** | Eine Nonce-Antwort verpflichtend zu machen ist eine Einzeiler-Änderung (`:319` von `if (echoed && …)` auf `if (!echoed || …)`) — kostet aber die genannte Interop-Fähigkeit. Entscheidung liegt beim Betreiber. |
+| **Begründung** | RFC 6960 behandelt die Nonce als optional, und viele verbreitete Responder beantworten sie nicht. Eine Pflicht würde den Betrieb mit diesen Respondern verhindern. |
+| **Verbleibendes Risiko** | Bei Respondern ohne Nonce kann eine aufgezeichnete, echte `good`-Antwort innerhalb ihres Gültigkeitsfensters erneut eingespielt werden. |
+| **Ausgleich** | `thisUpdate` darf nicht in der Zukunft liegen, `nextUpdate` ist Pflicht (sonst `revocation_list_expired`), ein überschrittenes `nextUpdate` wird abgelehnt. Der Cache gilt höchstens bis `min(nextUpdate, jetzt + 24 h)`. |
+| **Tests** | „Responder ohne Nonce -> akzeptiert, Zeitbindung gilt (Dokumentierte Ausnahme)“ und „falsche Nonce in der Antwort -> revocation_list_malformed (Replay abgewehrt)“ in `src/onboarding/ocsp-revocation.test.ts` |
+| **Strengere Variante** | Die Nonce zur Pflicht zu machen ist eine Änderung einer Bedingung in `evaluate` (`src/onboarding/ocsp-revocation.ts`). Sie kostet die Zusammenarbeit mit Respondern ohne Nonce. Die Entscheidung liegt beim Betreiber. |
 
-Abgrenzung: Das betrifft **unsere** Implementierung. Dass die Prüfbibliothek
-gar keine Nonce sendet (`dist/index.js:7602-7620`), ist ein davon getrennter
-Befund — siehe den Abschnitt zur Zweitprüfung weiter oben.
+### Gnadenfrist bei nicht erreichbarem OCSP-Responder
 
-### Gnadenfrist: was genau gilt
+Der Dienst startet den OCSP-Prüfer im Modus `bounded-soft-fail`: Ist der
+Responder nicht erreichbar, gilt eine zuvor verifizierte `good`-Antwort bis zu
+24 Stunden über ihr `nextUpdate` hinaus weiter. Eine längere Frist ist nicht
+konfigurierbar. Wird die Frist bei einer Präsentation genutzt, schreibt der
+Dienst das Audit-Ereignis `issuer_revocation_grace_period`.
 
-Die freigegebene Entscheidung (Option B) steht in
-[interne Notiz, nicht veröffentlicht]. Kurzfassung, jeweils mit Testbeleg in
-`src/onboarding/ocsp-revocation.test.ts`:
+| Situation | Ergebnis | Test in `src/onboarding/ocsp-revocation.test.ts` |
+|---|---|---|
+| vor `nextUpdate` | Status aus dem Cache, keine Abfrage | „Zustand A: innerhalb nextUpdate wird der Cache genutzt, keine zweite Anfrage“ |
+| nach `nextUpdate`, höchstens 24 h, letzter Status `good`, Abfrage scheitert | `good` | „Zustand B: nach nextUpdate, aber innerhalb der Frist, wird die veraltete good-Antwort genutzt“ |
+| genau `nextUpdate + 24 h` | noch `good`; 1 ms später Ablehnung `revocation_check_failed` | „Zustand C: exakt am Ende der 24-Stunden-Frist noch good, 1 ms spaeter Ablehnung“ |
+| keine zuvor verifizierte Antwort | Ablehnung | „Zustand C: ohne Vorabantwort gibt es keine Gnadenfrist“ |
+| `revoked` oder `suspended` im Cache | nie `good`, auch nicht bei Ausfall | „Zustand C: revoked wird nie weich behandelt“, „Zustand C: suspended wird nie weich behandelt“ |
+| Modus `fail-closed` (Standard der Klasse) | Ablehnung trotz Cache | „fail-closed (Default) lehnt auch mit vorhandener Vorabantwort ab“ |
 
-| Situation | Ergebnis | Test |
-| --- | --- | --- |
-| `jetzt < nextUpdate` | gecachter Status, keine Abfrage | "Zustand A: innerhalb nextUpdate wird der Cache genutzt, keine zweite Anfrage" |
-| `nextUpdate <= jetzt <= nextUpdate + 24 h`, letzter Status `good`, Abfrage scheitert | `good` | "Zustand B: nach nextUpdate, aber innerhalb der Frist, wird die veraltete good-Antwort genutzt" |
-| exakt bei `nextUpdate + 24 h` | noch `good` | "Zustand C: exakt am Ende der 24-Stunden-Frist noch good, 1 ms spaeter Ablehnung" |
-| 1 ms nach dem Fristende | Ablehnung `revocation_check_failed` | dieselbe Zeile, zweite Assertion |
-| ohne vorherige verifizierte Antwort | Ablehnung | "Zustand C: ohne Vorabantwort gibt es keine Gnadenfrist" |
-| `revoked` / `suspended` im Cache | nie `good`, auch nicht bei Ausfall | "Zustand C: revoked wird nie weich behandelt", "Zustand C: suspended wird nie weich behandelt" |
-| `unavailableMode: 'fail-closed'` (Default) | Ablehnung trotz Cache | "fail-closed (Default) lehnt auch mit vorhandener Vorabantwort ab" |
+## 4. Logfilter für Meldungen der Bibliothek
 
-Der Dienst startet mit `unavailableMode: 'bounded-soft-fail'`
-(`src/service/bootstrap.ts:80-88`). Es gibt keinen Konfigurationsschalter, mit
-dem sich die Frist verlaengern laesst; ein laengerer Wert als 24 Stunden ist
-nicht vorgesehen.
+Die Bibliothek schreibt bei fehlgeschlagenen OCSP-, CRL- und Trust-List-Abrufen
+Zertifikats-Subjects, Responder-URLs und Fehlertexte über `console.warn` in den
+Prozesslog. Einen Schalter dafür bietet sie nicht. Das widerspricht der Regel,
+dass keine Zertifikats- und Personendaten im Log landen, und tritt gerade im
+Störungsfall auf.
 
-## 6. Datenschutzbezogene Umsetzung vs. PLAN
+Deshalb installiert der Dienst beim Start einen Filter
+(`installLibraryLogFilter` in `src/lib/library-log-filter.ts`, aufgerufen in
+`src/service/run.ts`):
 
-- Die Planung sieht vor, nur pseudonymisierte/synthetische Daten loggen, keine Wallet-Identifikatoren, vp_token nur flüchtig verarbeiten. Umsetzung: Audit-Log ohne PII (`src/service/audit.ts`), vp_token wird in `handlePresentation` nur zur Verifikation genutzt und **nicht persistiert**; Ergebnisse (freigegebene Claim-Werte) werden flüchtig gehalten und nach Ablauf der Sitzungs-TTL gelöscht (`getResult`).
+- Er umhüllt nur `console.warn`; `error`, `log` und `info` bleiben unverändert.
+- Er unterdrückt nur Meldungen, deren erstes Argument eine Zeichenkette ist,
+  die mit `[openid4vp]` beginnt. Alle anderen Warnungen, auch die Warnungen des
+  Entwicklungsbetriebs, gehen unverändert durch.
+- Er gilt prozessweit und wird genau einmal installiert.
 
-## 7. Reproduzierbare Check-Befehle
+Tests: `src/lib/library-log-filter.test.ts` sowie „Gegenprobe: ohne Filter
+schreibt die Bibliothek bei OCSP-Ausfall nach console.warn“ und „mit
+installiertem Filter bleibt von derselben Praesentation keine Bibliothekszeile
+im Log“ in `src/service/issuer-revocation.test.ts`.
+
+**Grenze:** Der Filter hängt an zwei Annahmen über die Bibliothek: Alle
+Meldungen gehen über `console.warn`, und alle beginnen mit `[openid4vp]`. In
+Version 0.11.1 trifft das auf alle sechs Meldestellen zu. Ändert ein Update das
+Präfix oder den Kanal, greift der Filter stillschweigend nicht mehr, und die
+Daten erscheinen wieder im Log. Kein automatischer Test in diesem Repository
+erkennt das. Nach jedem Update von `@openeudi/openid4vp` deshalb von Hand
+prüfen:
 
 ```bash
-npm audit                     # 0 Schwachstellen
-git ls-files | grep -E 'node_modules|\.env|\.pem|\.key|secret'   # keine Treffer
-npm ls --all                  # Abhängigkeitsbaum (siehe Abschnitt 4)
-npm test                      # 695 Tests in 47 Dateien grün
-npm run typecheck             # fehlerfrei
+grep -n -A1 -E "console\.(warn|log|error|info|debug|trace)\(" node_modules/@openeudi/openid4vp/dist/index.js
 ```
+
+Jede gefundene Meldung muss mit `[openid4vp]` beginnen. Meldungen über
+`process.emitWarning` oder `process.stdout.write` erfasst der Filter nicht; in
+Version 0.11.1 kommen sie nicht vor.
+
+## 5. Bekannte Lücken
+
+1. **Keine Mandantenverwaltung für den Produktionsbetrieb.** Mandanten und
+   ihre API-Schlüssel werden nur im Entwicklungsbetrieb angelegt
+   (`DEV_TEST_TENANTS` in `src/service/bootstrap.ts`). Einen Weg, im
+   Produktionsbetrieb Mandanten anzulegen, gibt es nicht; dort beantwortet der
+   Dienst jede Anfrage auf Mandantenrouten mit 401.
+2. **Keine Persistenz.** Sitzungen, Ergebnisse, Audit-Log und Ratenbegrenzung
+   liegen im Arbeitsspeicher eines Prozesses. Ein Neustart löscht alles.
+   Mehrere Instanzen teilen keinen Zustand.
+3. **Audit-Log ohne Beweiskraft.** Die Einträge sind hash-verkettet, sodass
+   eine nachträgliche Änderung erkennbar ist. Wer den Prozess kontrolliert,
+   kann die Kette aber neu berechnen; Signatur, Zeitstempeldienst oder externer
+   Speicher fehlen ([Bedrohungsmodell](bedrohungsmodell.md), S15).
+4. **Kein TLS im Dienst.** Der Dienst spricht HTTP. TLS, HSTS und die
+   Weiterleitung auf HTTPS muss ein Reverse Proxy übernehmen
+   ([Deployment](deployment.md)).
+5. **Keine Schlüsselverwaltung.** Der Verifier-Schlüssel wird aus einer
+   PEM-Datei geladen. Es gibt keine Anbindung an KMS oder HSM und keine
+   Schlüsselrotation.
+6. **Keine Interoperabilität nachgewiesen.** Getestet wurde nur gegen die
+   Mock-Wallet dieses Repositorys ([Interoperabilitätsmatrix](interop-matrix.md)).
+7. **Verifier-Identität im Entwicklungsbetrieb.** Request Objects werden dort
+   mit einem selbstsignierten TEST-Zertifikat signiert. Eine profilkonforme
+   Wallet (HAIP) würde diese Identität ohne gültige Zugriffs- und
+   Registrierungszertifikate ablehnen.
+8. **Onboarding nicht vollständig.** Das Gate für WRPAC und WRPRC ist ohne
+   zusätzliches Material aus; die CRL-Prüfung ist nicht verdrahtet; die
+   Registrar-Anbindung fehlt.
+9. **Sperrprüfung nur lokal getestet.** OCSP und Token Status List sind nur
+   gegen lokale Testserver geprüft, nicht gegen produktive Responder oder
+   Status-List-Aussteller.
+10. **Kein mdoc.** Nur `dc+sd-jwt` wird unterstützt.
+11. **Keine Konformitätsläufe.** In diesem Repository gibt es keinen Lauf der
+    OIDF-Konformitätssuite und keinen externen HAIP-Konformitätstest.
+12. **Hinweis zu `@sd-jwt/decode`.** Die Bibliothek bringt transitiv
+    `@sd-jwt/decode`, `@sd-jwt/types` und `@sd-jwt/utils` in Version 0.19.0 mit.
+    Diese Pakete sind als veraltet markiert; der Hinweistext nennt
+    `GHSA-f9j6-8p6x-r9j6`. `npm audit` meldet dafür keinen Befund, und die
+    Advisory war in der GitHub-Advisory-Datenbank nicht auffindbar. Ob Version
+    0.19.0 betroffen ist, ist damit offen. Ein Wechsel setzt ein Update von
+    `@openeudi/openid4vp` voraus.
+13. **XML-Signaturbibliotheken.** `xadesjs`, `xmldsigjs` und `@xmldom/xmldom`
+    kommen transitiv mit der Bibliothek (für deren LOTL-Verarbeitung). Der
+    Dienst nutzt diesen Pfad nicht.
+14. **Demo-Seite.** Die Demo (`npm run demo`) hat keinen CSRF-Schutz. Sie
+    bindet nur an 127.0.0.1 und ist nicht für den Betrieb gedacht.
+
+## 6. Datenschutz
+
+- Der `vp_token` wird nur zur Prüfung verarbeitet und nicht gespeichert.
+- Das Ergebnis enthält nur die angefragten Claim-Werte. Es liegt flüchtig im
+  Arbeitsspeicher, wird genau einmal ausgeliefert und verfällt sonst nach der
+  Ergebnis-TTL.
+- Logs und Audit-Log enthalten keine Claim-Werte, keine Wallet-Kennungen und
+  keine Zugangsdaten.
+- Eine Datenschutz-Folgenabschätzung und eine fachliche Datenschutzfreigabe
+  liegen nicht vor. Sie hängen vom Einsatz bei der jeweiligen Relying Party ab.
+
+## 7. Abhängigkeiten
+
+Laufzeitabhängigkeiten (exakte Versionen in `package.json` und
+`package-lock.json`):
+
+| Paket | Version | Lizenz | Zweck |
+|---|---|---|---|
+| `@openeudi/openid4vp` | 0.11.1 | Apache-2.0 | OpenID4VP, DCQL, signierte Request Objects, SD-JWT- und Key-Binding-Prüfung |
+| `@openeudi/core` | 0.8.0 | Apache-2.0 | gemeinsame Typen und Hilfsfunktionen |
+| `@openeudi/dcql` | 0.2.0 | Apache-2.0 | DCQL-Typen und Prüfung |
+| `@peculiar/asn1-ocsp` | 2.9.5 | MIT | ASN.1-Strukturen für den eigenen OCSP-Client |
+
+Entwicklungsabhängigkeiten sind unter anderem `jose`, `@peculiar/x509`
+(TEST-Zertifikate), `typescript`, `eslint` und `vitest`. Die vollständige
+Lizenzübersicht steht in [Lizenzen der Abhängigkeiten](lizenzen-abhaengigkeiten.md).
+
+## 8. Selbst nachprüfen
+
+```bash
+npm ci
+npm audit
+npm ls --all
+git ls-files | grep -E 'node_modules|\.env|\.pem|\.key|secret'
+npm test
+npm run typecheck
+npm run lint
+```
+
+Der `git ls-files`-Befehl soll keine Treffer liefern. `npm ci`, `npm test`,
+`npm run typecheck` und `npm run lint` laufen bei jedem Push auch in der CI,
+dazu `npm run test:coverage` und `npm audit --audit-level=high`.

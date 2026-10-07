@@ -1,154 +1,163 @@
 # Interoperabilitätsmatrix
 
-Stand: `main` commit `98998bb`, 29.09.2026. Jede Zeile nennt Datei und Zeile sowie
-den zugehörigen Test. Was nicht im Code belegt ist, steht als **nicht
-implementiert** oder **unbelegt**, nicht als „geplant".
+Dieses Dokument beschreibt, welche Protokollmerkmale der Dienst im Code
+umsetzt, womit er getestet wurde und womit nicht. Jede Zeile nennt die Stelle
+im Code und den zugehörigen Test. Was im Code nicht belegt ist, steht als
+**nicht implementiert** oder **nicht nachgewiesen** in der Tabelle, nicht als
+„geplant“.
 
-> **Produktname: `Attack`.** Das ist ein Arbeitsname. Die Namensentscheidung ist offen.
+Das Dokument ist **kein Konformitätsnachweis** und **kein Nachweis einer
+Interoperabilität mit einer echten Wallet**. Ein solcher Nachweis liegt nicht
+vor (siehe [eIDAS und ARF Zuordnung](eidas-arf-konformitaet.md), Zeile
+„Offizieller ARF-/eIDAS-Konformitätsnachweis“).
 
-Dieses Dokument beschreibt den Stand des Repositorys. Es ist **kein
-Konformitätsnachweis** und **kein Nachweis einer durchgeführten
-Interoperabilitätsprüfung**. Ein solcher Nachweis liegt nicht vor
-(`docs/eidas-arf-konformitaet.md:37`).
+## Teststand in einem Satz
+
+Der Dienst wurde Ende zu Ende ausschließlich gegen die Mock-Wallet dieses
+Repositorys getestet, mit TEST-Schlüsseln und TEST-Credentials, die im
+Arbeitsspeicher erzeugt werden. Mit einer echten Wallet, einer Sandbox oder
+einer nationalen Wallet wurde er noch nicht getestet.
+
+| Gegenstelle | Ende zu Ende mit diesem Dienst getestet? | Beleg |
+|---|---|---|
+| Mock-Wallet dieses Repositorys (`src/decision-test/mock-wallet.ts`) | **Ja**, automatisiert. Anfrage anlegen, signiertes Request Object abrufen, Präsentation über `POST /direct_post`, Ergebnis abrufen, löschen, alles über HTTP gegen den echten Dienst. | `src/service/e2e-vollablauf.test.ts`, `src/service/service.test.ts` („End-to-End mit Mock-Wallet“), Demo `src/demo/scenario-runner.ts` |
+| walt.id verifier-api2 | **Nein.** Als möglicher Baustein bewertet, siehe [Abschnitt 3](#3-bewertung-fremder-implementierungen). Dabei lief eine eigene Test-Wallet gegen walt.id, nicht gegen diesen Dienst. | `test/ERGEBNIS.md`, `test/waltid/evidence/waltid-run.txt` |
+| eudi-verify | **Nein.** Als möglicher Baustein bewertet. Das Kit baut auf `@openeudi/openid4vp` auf; dieselbe Bibliothek ist der Protokollkern dieses Dienstes. Daraus folgt kein Interop-Nachweis für diesen Dienst. | `test/ERGEBNIS.md` (das Lauf-Protokoll ist nicht im Repository) |
+| miEUDIverifier | **Nein.** Als möglicher Baustein bewertet und verworfen. | `test/ERGEBNIS.md`, `test/evidence/mieudi-verify.txt` |
+| Deutsche EUDI-Wallet, SPRIND-Sandbox oder eine andere Sandbox | **Nein.** Ein Sandbox-Zugang liegt nicht vor. | keiner |
+| Andere echte Wallet (Referenz-Wallet, nationale Wallet in Produktion) | **Nein.** | keiner |
 
 ## 1. Protokoll und Formate
 
-| Merkmal | Status | Beleg | Test |
+Die eingesetzte OpenID4VP-Bibliothek ist `@openeudi/openid4vp` in Version
+0.11.1 (`package.json`).
+
+| Merkmal | Status | Beleg im Code | Test |
 |---|---|---|---|
-| OpenID4VP Version | implementiert | `@openeudi/openid4vp` **0.11.1** installiert (`package.json`); importiert in `src/service/service.ts:16` | `src/decision-test/decision.test.ts` |
-| Response Mode `direct_post` | implementiert | `src/service/app.ts:238-256`, Route `POST /direct_post` | `src/service/direct-post-interop.test.ts` |
-| Response Mode `direct_post.jwt` | implementiert | `src/onboarding/jar.ts:16, 53, 85`; Verarbeitung in `src/service/service.ts:624` | `src/service/fehlerbilder.test.ts` |
-| Signiertes Request Object (JAR) | implementiert | `src/onboarding/jar.ts:85`; `createSignedAuthorizationRequest` in `src/service/service.ts:16` | `src/service/jar-parity.test.ts`, `src/decision-test/decision.test.ts` |
-| Verschlüsselte Antwort (JWE) | implementiert | `src/service/service.ts:624-690`; Empfang verschlüsselter Antworten | `src/service/fehlerbilder.test.ts` |
-| JWE `enc` Werte | implementiert | `A128GCM` und `A256GCM` in `src/onboarding/jar.ts:34` (`DEFAULT_SUPPORTED_ENC_VALUES`); Schlüsselalgorithmus `ECDH-ES` in `src/service/service.ts:330` | `src/service/jar-parity.test.ts` |
-| JWE `alg` Wert | implementiert | `src/service/service.ts:330` (`publicJwk.alg = 'ECDH-ES'`) | `src/service/jar-parity.test.ts` |
-| Anfrage als Form-Post | implementiert | `src/service/app.ts:79` (`application/x-www-form-urlencoded`), Verarbeitung in `src/service/app.ts:244` | `src/service/direct-post-interop.test.ts` |
-| DCQL | implementiert | `src/service/service.ts:369` und `:498` (`buildHaipQuery`), Übergabe in `src/service/service.ts:406` | `src/decision-test/sd-jwt-nachweis.test.ts` |
-| HAIP | teilweise | Query-Aufbau über `buildHaipQuery` (`src/service/service.ts:369`); `validateHaipQuery` in `src/service/limits.ts:88` | `src/decision-test/decision.test.ts`; `docs/eidas-arf-konformitaet.md` führt die Profile als „Teilweise erfüllt" |
-| SD-JWT VC | implementiert | Formatangabe `dc+sd-jwt` in `src/service/service.ts:369`; Validierung `src/service/service.ts:530-560` | `src/decision-test/sd-jwt-nachweis.test.ts` |
-| mdoc (mso_mdoc) | **nicht implementiert** | Kein Treffer im Produktivcode. Die Suche nach `mdoc` findet in `src/cli/main.ts:276, 383, 399` nur die Zeichenkette in `cmdOcsp`, also die OCSP-Abfrage, kein mdoc. | **kein Test** |
-| Credential Sets (Disjuktion) | **nicht implementiert** | Die installierte Version 0.11.1 kennt `buildCredentialSetQuery` nicht; das wurde für die Version 0.12.0 geprüft und in [interner Bericht, nicht veröffentlicht] festgehalten. | **kein Test** |
+| OpenID4VP | implementiert | `@openeudi/openid4vp`, importiert in `src/service/service.ts` | `src/decision-test/decision.test.ts` |
+| Response Mode `direct_post` | implementiert | Route `POST /direct_post` in `src/service/app.ts` | `src/service/direct-post-interop.test.ts` |
+| Response Mode `direct_post.jwt` | implementiert | `src/onboarding/jar.ts`; Verarbeitung in `VerifierService.handleEncryptedPresentation` (`src/service/service.ts`) | `src/service/fehlerbilder.test.ts` |
+| Signiertes Request Object (JAR) | implementiert | `src/onboarding/jar.ts`; `createSignedAuthorizationRequest` der Bibliothek in `src/service/service.ts` | `src/service/jar-parity.test.ts`, `src/decision-test/decision.test.ts` |
+| Verschlüsselte Antwort (JWE) | implementiert | `handleEncryptedPresentation` in `src/service/service.ts` | `src/service/fehlerbilder.test.ts` |
+| JWE `enc` Werte | implementiert | `A128GCM` und `A256GCM` (`DEFAULT_SUPPORTED_ENC_VALUES` in `src/onboarding/jar.ts`) | `src/service/jar-parity.test.ts` |
+| JWE `alg` Wert | implementiert | `ECDH-ES` (`publicJwk.alg` in `src/service/service.ts`), frisches Schlüsselpaar je Sitzung | `src/service/jar-parity.test.ts` |
+| Antwort als Form-Post | implementiert | `application/x-www-form-urlencoded`, `parseFormDirectPost` in `src/service/app.ts` | `src/service/direct-post-interop.test.ts` |
+| DCQL | implementiert | `buildHaipQuery` der Bibliothek in `src/service/service.ts` | `src/decision-test/sd-jwt-nachweis.test.ts` |
+| HAIP | teilweise | Query über `buildHaipQuery`; ein `HaipValidationError` wird auf `query_invalid` abgebildet (`presentationErrorCode` in `src/service/limits.ts`). Ein externer HAIP-Konformitätslauf fehlt. | `src/decision-test/decision.test.ts` |
+| SD-JWT VC | implementiert | Format `dc+sd-jwt`; Prüfung über `verifyAuthorizationResponse` der Bibliothek in `src/service/service.ts` | `src/decision-test/sd-jwt-nachweis.test.ts` |
+| Key Binding (KB-JWT) | teilweise | über die Bibliothek; die [eIDAS und ARF Zuordnung](eidas-arf-konformitaet.md) führt „VP-/SD-JWT-Validierung und Key Binding“ als „Teilweise erfüllt“ | `src/decision-test/` |
+| Nur angefragte Claims im Ergebnis | implementiert | `nurAngefragteClaims` in `src/service/profile.ts` | `src/service/e2e-vollablauf.test.ts` („ein nicht angefragter Klartext-Claim aus dem Issuer-JWT landet nicht im Ergebnis“) |
+| Replay-Schutz | implementiert | `session_reused` in `src/lib/session.ts` | `src/service/fehlerbilder.test.ts` |
+| mdoc (`mso_mdoc`) | **nicht implementiert** | Kein mdoc-Pfad im Produktivcode. Anfragen und Präsentationen laufen nur im Format `dc+sd-jwt`. | **kein Test** |
+| Credential Sets (Auswahl zwischen mehreren Nachweisen) | **nicht implementiert** | Die installierte Bibliotheksversion 0.11.1 bietet `buildCredentialSetQuery` nicht an. | **kein Test** |
 
 ## 2. Vertrauen und Sperrprüfung
 
-| Merkmal | Status | Beleg | Test |
+| Merkmal | Status | Beleg im Code | Test |
 |---|---|---|---|
-| Aussteller-Vertrauensanker | implementiert | `src/service/issuer-anchors.ts:23`; fail closed bei fehlender, leerer oder unbrauchbarer Datei in `src/service/issuer-anchors.ts:28, 32, 38` | `src/service/aussteller-anker.test.ts` |
-| Vertrauensanker zur Laufzeit | implementiert | `src/service/service.ts:465-466` (`issuer_trust_anchors_empty`) | `src/service/aussteller-anker.test.ts:212, 229` |
-| Verifier-Identität und Kette | implementiert | `src/service/verifier-identity.ts:68-119`; Startabbruch bei fehlendem Material | `src/service/produktionsschalter.test.ts:188` |
-| OCSP | implementiert | `src/onboarding/ocsp-revocation.ts`; Grenze für veraltete Antworten in `:117` und `:122` | `src/onboarding/ocsp-revocation.test.ts:240, 248, 575` |
-| CRL | implementiert | `src/onboarding/crl-revocation.ts` | `src/onboarding/revocation-fail-closed.test.ts` |
-| Token Status List | implementiert | `src/service/credential-status.ts`; Verdrahtung in `src/service/bootstrap.ts:100` | `src/service/credential-status.test.ts:302, 310, 317` |
-| LOTL (Liste der Trust Lists) | **nicht implementiert** | Kein Treffer in `src/`. Das Wort erscheint ausschließlich in Dokumenten ([interner Bericht, nicht veröffentlicht], [interner Bericht, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht], [interne Notiz, nicht veröffentlicht]), dort im Zusammenhang mit der geprüften Bibliotheksversion 0.12.0. | **kein Test** |
-| WRPAC und WRPRC | teilweise | `src/onboarding/wrpac.ts`, `src/onboarding/wrprc.ts`, Verdrahtung in `src/onboarding/onboarding-wiring.ts:79`; im strengen Produktionsbetrieb meldet `/ready` `onboarding: failed` (`src/service/run.ts:47`) | `src/onboarding/onboarding.test.ts`, `src/onboarding/onboarding-gate-hardening.test.ts` |
-| Registratur-Anbindung | **nicht implementiert** | `docs/fehlercodes.md:112` nennt den `RegistrarClient` als ungenutzt; `src/onboarding/registrar.ts` wird nicht verdrahtet | **kein Test** |
+| Aussteller-Vertrauensanker | implementiert | `loadIssuerTrustAnchorsPem` in `src/service/issuer-anchors.ts`; Start bricht bei fehlender, leerer oder unbrauchbarer Datei ab | `src/service/aussteller-anker.test.ts` |
+| Vertrauensanker zur Laufzeit leer | implementiert | Ablehnung mit `issuer_trust_anchors_empty` in `src/service/service.ts` | `src/service/aussteller-anker.test.ts` |
+| Verifier-Identität und Zertifikatskette | implementiert | `loadVerifierIdentity` und `resolveVerifierIdentity` in `src/service/verifier-identity.ts`; ohne Material bricht der Start in Produktion ab | `src/service/produktionsschalter.test.ts` |
+| OCSP für die Ausstellerkette | implementiert | `OcspRevocationChecker` in `src/onboarding/ocsp-revocation.ts`, beim Start verdrahtet in `src/service/bootstrap.ts`. Getestet nur gegen einen lokalen Test-Responder, nicht gegen einen produktiven. | `src/onboarding/ocsp-revocation.test.ts`, `src/service/issuer-revocation.test.ts` |
+| CRL | implementiert, **im Dienststart nicht verdrahtet** | `CrlRevocationChecker` in `src/onboarding/crl-revocation.ts`. `bootstrapService` setzt ihn nirgends ein; das Onboarding-Gate erhält im Produktionsbetrieb den OCSP-Prüfer. | `src/onboarding/revocation-fail-closed.test.ts` |
+| Token Status List | implementiert | `TokenStatusListChecker` in `src/service/credential-status.ts`, verdrahtet in `src/service/bootstrap.ts`. Mit `ATTACK_DEV_MODE=true` abgeschaltet. Gegen echte Status-List-Aussteller nicht erprobt. | `src/service/credential-status.test.ts` |
+| Trust List | **nur Testform** | `TrustListMonitor` in `src/trustlist/monitor.ts` prüft eine JWS-signierte Liste im eigenen Testformat (`trust-list+jwt.test`). Genutzt in Tests und in der Demo, im Dienststart nicht verdrahtet. | `src/trustlist/trustlist.test.ts` |
+| LOTL (List of Trusted Lists nach ETSI TS 119 612) | **nicht implementiert** | Keine Verarbeitung im Produktivcode. Geprüft wird nur, was als Anker konfiguriert ist. | **kein Test** |
+| WRPAC und WRPRC | teilweise | `src/onboarding/wrpac.ts`, `src/onboarding/wrprc.ts`, `resolveOnboardingGate` in `src/onboarding/onboarding-wiring.ts`. Das Gate ist nur aktiv, wenn `ATTACK_ONBOARDING_ACCESS_CA_PEM` und `ATTACK_ONBOARDING_WRPRC_ISSUER_PEM` gesetzt sind. Im Produktionsbetrieb ohne Gate meldet `/ready` `onboarding: failed` (`src/service/run.ts`). Echte Registrar- und Access-CA-Profile fehlen. | `src/onboarding/onboarding.test.ts`, `src/onboarding/onboarding-gate-hardening.test.ts`, `src/service/onboarding-gate.test.ts` |
+| Registrar-Anbindung | **nicht implementiert** | Der Client in `src/onboarding/registrar.ts` existiert, wird aber nicht verdrahtet (siehe `registrar_*` in [Fehlercodes](fehlercodes.md)). | **kein Test** im Dienstablauf |
 
-## 3. Was die Untermodule geprüft haben, und was nicht
+## 3. Bewertung fremder Implementierungen
 
-Wichtig für die Einordnung: Die drei Untermodule unter `test/` wurden **nicht**
-zum Test dieses Dienstes gegen eine Referenz-Wallet verwendet. Sie dienten der
-Bewertung **anderer** Implementierungen als Kandidaten für den Kern.
+Drei quelloffene Verifier wurden als mögliche Bausteine für den Kern dieses
+Dienstes bewertet. **Keiner dieser Läufe hat diesen Dienst getestet.** Geprüft
+wurde jeweils die fremde Implementierung gegen die Anforderung „startet lokal,
+erzeugt ein signiertes Request Object mit DCQL für SD-JWT VC, validiert einen
+Test-`vp_token`“. Die Quelltexte der drei Projekte liegen nicht in diesem
+Repository.
 
-Belege: `test/ERGEBNIS.md`. Die Untermodule selbst sind nicht Teil der öffentlichen Kopie dieses Repositorys.
-
-| Untermodul | wofür es laut Beleg verwendet wurde | geprüft | nicht geprüft |
+| Projekt | Ergebnis der Bewertung | Vertrauensanker im Testlauf | Beleg |
 |---|---|---|---|
-| `test/eudi-verify` (eudi-verify, `0f69ea69`) | Kandidatenbewertung einer Bibliothek | `test/ERGEBNIS.md` nennt „✅ ~45 min", signiertes Request Object mit HAIP, Issuer-Signatur „echt gegen das x5c-Zertifikat" | **Ob unser Dienst mit einer echten Wallet interoperiert.** Nicht Gegenstand. |
-| `test/waltid/waltid-identity` | Kandidatenbewertung eines Verifier-Servers | `test/ERGEBNIS.md`: „✅ ~13 min", DCQL, x509_hash, ES256+x5c, Trust-Anker-Prüfungen liefen | **Ebenso nicht.** |
-| `test/miEUDIverifier` | Kandidatenbewertung, **verworfen** | `test/ERGEBNIS.md`: „❌ erzeugt KEIN Request Object selbst", Trust-Anker-Prüfung findet laut Beleg „gar nicht statt" | wie oben |
+| walt.id verifier-api2 (Release v1.0.0, Docker) | bestanden: Request Object mit `x509_hash`, ES256 und `x5c`, DCQL; eine eigene Test-Wallet (`test/waltid/wallet.ts`) legte eine SD-JWT-Präsentation vor, Ergebnis `SUCCESSFUL` | keine Vertrauensliste konfiguriert; die Aussteller-Signatur (`did:key`) wurde geprüft, eine Ankerprüfung fand nicht statt | `test/waltid/evidence/waltid-run.txt` |
+| eudi-verify (mit `@openeudi/openid4vp` 0.10.0) | bestanden: signiertes Request Object nach HAIP, Testpräsentation `verified` | Aussteller-Signatur gegen `x5c` geprüft, Ankerprüfung ausdrücklich abgeschaltet (`skipTrustCheck`) | `test/ERGEBNIS.md`; das Lauf-Protokoll ist nicht im Repository |
+| miEUDIverifier (.NET) | nicht bestanden: erzeugt selbst kein Request Object und validiert selbst keinen `vp_token`, beides delegiert es an ein externes Verifier-Backend | findet im Projekt nicht statt | `test/evidence/mieudi-verify.txt` |
 
-**Belegte Evidenzdateien** laut `test/ERGEBNIS.md`:
-`test/waltid/evidence/waltid-run.txt` und `test/evidence/mieudi-verify.txt` liegen
-im Repository. Der Lauf von eudi-verify ist in der öffentlichen Kopie nicht enthalten.
-Die Belege stammen aus lokalen Läufen gegen die Kandidaten, nicht gegen unseren
-Dienst.
+Ergebnis der Bewertung: Der Dienst verwendet `@openeudi/openid4vp` als
+Protokollbibliothek und bettet sie selbst ein, statt einen fremden Server zu
+betreiben.
 
-**Nicht belegt:** Ein Testlauf unseres Dienstes gegen eine dieser Implementierungen
-als Wallet. `test/ERGEBNIS.md` vergleicht Kandidaten **untereinander und gegen
-die Anforderung** „erzeugt signiertes Request Object", nicht gegen unseren
-Dienst.
+### Zweiter Lauf: Versuch einer direkten Kopplung
 
-## 4. Interop-Testplan
+In einem zweiten Lauf wurde geprüft, ob sich diese Projekte direkt mit diesem
+Dienst koppeln lassen. Das ist nicht gelungen:
 
-Die folgenden Schritte sind **ein Plan, kein durchgeführter Ablauf.** Nichts
-davon ist gelaufen. Nennenswerte Testumgebungen werden nur aufgeführt, wenn sie
-im Repository belegt sind.
-
-### Schritt 1: Voraussetzungen schaffen
-
-| Schritt | Inhalt | Beleg für das, was existiert |
+| Projekt | Was geprüft wurde | Ergebnis |
 |---|---|---|
-| 1.1 | Verifier-Identität bereitstellen (Schlüssel, Zertifikatskette) | `docs/betrieb.md` Abschnitt 1, `docs/deployment.md:29-32` |
-| 1.2 | Aussteller-Vertrauensanker bereitstellen | `docs/deployment.md:32`, `src/service/issuer-anchors.ts:23` |
-| 1.3 | Dienst im Produktionsmodus starten | `docs/deployment.md:10-19` |
-| 1.4 | Prüfen, dass `/ready` bereit meldet | Route `src/service/app.ts:200-206`; Achtung: ohne Gate-Material meldet sie `onboarding: failed` (`src/service/run.ts:47`) |
+| eudi-verify | eigene Test-Suite des Projekts | 203 Tests bestanden |
+| eudi-verify | lokaler Server mit Session, Request Object, JWS-Prüfung, verschlüsseltem Callback | **teilweise**: Session und Callback per HTTP erfolgreich, die abschließende Prüfung schlug fehl. Das mitgelieferte Skript forderte ein `mso_mdoc` Credential an, lieferte aber eine SD-JWT-Präsentation (`Invalid base64url character in vp_token/apu`). Das Skript meldet `RESULT: FAILED` und endet trotzdem mit Exit Code 0. |
+| eudi-verify | direkte Kopplung mit diesem Dienst | **nicht ausführbar**: das Projekt erwartet `/sessions`, `/request/{id}`, `/callback` und `/tokens/verify`, dieser Dienst bietet `/v1/verification-requests` und `/direct_post`. Ein Adapter existiert nicht. |
+| miEUDIverifier | Release-Build | bestanden, 0 Fehler |
+| miEUDIverifier | .NET-Test-Suite | mit `DOTNET_ROLL_FORWARD=Major` auf .NET 10 liefen 48 von 48 Tests; ohne diesen Schalter startet die Suite nicht, weil die .NET 8 Runtime fehlte |
+| miEUDIverifier | Präsentation einer Wallet | **blockiert**: es fehlten eine Wallet mit PID, ein erreichbares Backend und die nötigen Zertifikate |
+| miEUDIverifier | direkte Kopplung mit diesem Dienst | **nicht ausführbar**: anderes Backend (`/ui/presentations`) und anderes Sitzungsmodell |
 
-### Schritt 2: Wallet-Zugang
+Ein Fehler in diesem Dienst wurde in keinem dieser Läufe gefunden. Das ist
+kein Beleg für Interoperabilität, weil keiner der Läufe diesen Dienst mit einer
+Wallet verbunden hat.
 
-| Schritt | Inhalt | Beleg |
-|---|---|---|
-| 2.1 | Zugang zu einer Referenz-Wallet beschaffen | Einladung zu einem Sandbox-Programm steht aus, Kickoff war am 17.09. |
-| 2.2 | Konkrete Wallet, Version, Anbieter festlegen | **zu recherchieren**. Im Repository ist keine konkrete Referenz-Wallet benannt. |
-| 2.3 | Testumgebung für die Wallet festlegen | **zu recherchieren** |
+## 4. Was für einen Test mit einer echten Wallet fehlt
 
-### Schritt 3: Ablauf gegen die echte Wallet
+Ein solcher Test ist **nicht gelaufen**. Er setzt voraus:
 
-| Schritt | Inhalt | Sollverhalten laut Code |
-|---|---|---|
-| 3.1 | Authorization Request auslösen | `src/service/service.ts:406` erzeugt die Anfrage mit DCQL |
-| 3.2 | Signiertes Request Object prüfen | `src/onboarding/jar.ts:85` |
-| 3.3 | Wallet-Antwort über `direct_post` senden | `src/service/app.ts:238-256` |
-| 3.4 | Status prüfen: 200 mit `valid: true` | `src/service/app.ts:256`, `docs/fehlercodes.md` |
-| 3.5 | Ablehnungsfälle durchspielen | 200 mit `valid: false` bei inhaltlicher Ablehnung, 422 bei nicht verarbeitbarer Präsentation |
-| 3.6 | Wiederverwendung derselben Antwort prüfen | muss mit `session_reused` scheitern, `src/lib/session.ts:81` |
+1. Eine Verifier-Identität mit Schlüssel und Zertifikatskette, der die Wallet
+   vertraut ([Betrieb](betrieb.md), [Deployment](deployment.md)). Das
+   selbstsignierte TEST-Zertifikat des Entwicklungsbetriebs würde eine
+   profilkonforme Wallet (HAIP) ablehnen. Ausprobiert wurde das nicht.
+2. Zugriffs- und Registrierungszertifikate (WRPAC, WRPRC) für Deutschland.
+3. Die Aussteller-Vertrauensanker der echten PID.
+4. Zugang zu einer Wallet mit PID in einer Testumgebung. Er liegt nicht vor.
+5. Den Dienst im Produktionsmodus, mit `/ready` bereit.
 
-### Schritt 4: Auswertung
+Erwartetes Verhalten laut Code, sobald diese Voraussetzungen erfüllt sind:
 
-| Schritt | Inhalt |
+| Ablauf | Erwartung |
 |---|---|
-| 4.1 | Prüfen, dass die Antwort **nur die angeforderten** Claims enthält (`src/service/service.ts:527`) |
-| 4.2 | Prüfen, dass das Audit-Log keinen Präsentationinhalt trägt (`src/service/audit-inhalt.test.ts`) |
-| 4.3 | Abweichungen nach `docs/eidas-arf-konformitaet.md` zuordnen |
-| 4.4 | Ergebnis als Ergänzung zu diesem Dokument festhalten |
+| Anfrage anlegen | `POST /v1/verification-requests` erzeugt ein signiertes Request Object mit DCQL |
+| Wallet-Antwort | über `POST /direct_post`, Ergebnis HTTP 200 mit `valid: true` |
+| Inhaltliche Ablehnung | HTTP 200 mit `valid: false` und festem Fehlercode |
+| Nicht verarbeitbare Antwort | HTTP 422 |
+| Dieselbe Antwort erneut senden | Ablehnung mit `session_reused` |
+| Ergebnis | enthält nur die angefragten Claims; das Audit-Log enthält keine Präsentationsinhalte (`src/service/audit-inhalt.test.ts`) |
 
-### Externe Testumgebungen
-
-| Umgebung | Beleg |
-|---|---|
-| Sandbox-Programm, Anmeldung erfolgt, Einladung ausstehend | interner Planungsstand |
-| Konkrete Konformitätstestumgebung eines Anbieters | **nicht im Repository belegt**, zu recherchieren |
-
-## 5. Abweichungen und Lücken
+## 5. Lücken
 
 ### 5.1 Nicht implementiert
 
-| Merkmal | Beleg für das Fehlen |
+| Merkmal | Bedeutung |
 |---|---|
-| mdoc / mso_mdoc | kein Treffer im Produktivcode, siehe Abschnitt 1 |
-| LOTL | kein Treffer in `src/`, nur Dokumentation, siehe Abschnitt 2 |
-| Credential Sets (Disjuktion über mehrere Nachweise) | Version 0.11.1 kennt die Funktion nicht, siehe [interner Bericht, nicht veröffentlicht] |
-| Registratur-Anbindung | `docs/fehlercodes.md:112` nennt den Client ungenutzt |
+| mdoc (`mso_mdoc`) | Eine Wallet, die nur mdoc anbietet, wird nicht bedient. |
+| LOTL nach ETSI TS 119 612 | Vertrauen entsteht nur über ausdrücklich konfigurierte Anker. |
+| Credential Sets | Keine Auswahl zwischen alternativen Nachweisen in einer Anfrage. |
+| Registrar-Anbindung | Der Client existiert, ist aber nicht verdrahtet. |
+| Mandantenverwaltung im Produktionsbetrieb | Mandanten und API-Schlüssel entstehen nur im Entwicklungsbetrieb (`DEV_TEST_TENANTS` in `src/service/bootstrap.ts`). |
+| Persistenz | Sitzungen, Ergebnisse, Audit-Log und Ratenbegrenzung liegen im Arbeitsspeicher eines Prozesses. |
 
 ### 5.2 Teilweise implementiert
 
-| Merkmal | Was fehlt | Beleg |
-|---|---|---|
-| HAIP-Profile | `docs/eidas-arf-konformitaet.md` führt sie als „Teilweise erfüllt" | dieselbe Zeile |
-| VP- und SD-JWT-Validierung | Key Binding laut Zuordnung „Teilweise erfüllt" | dieselbe Zeile |
-| Credential-Statusprüfung | reale Status-List-Aussteller laut Zuordnung nicht erprobt | dieselbe Zeile |
-| Issuer-Kette, OCSP und CRL | Fail-closed-Verhalten vorhanden, Umfang „Teilweise erfüllt" | dieselbe Zeile |
-| Verifier-Identität und Anker | Umfang „Teilweise erfüllt" | dieselbe Zeile |
-| WRPAC und WRPRC | Gate im Produktionsbetrieb nicht aktiv | `src/service/run.ts:47` |
+| Merkmal | Was fehlt |
+|---|---|
+| HAIP-Profile | externer Konformitätslauf |
+| SD-JWT-Validierung und Key Binding | vollständige Matrix für alle Credential-Formate |
+| Credential-Status | Erprobung mit echten Status-List-Ausstellern |
+| OCSP und CRL | Nachweis gegen produktive Responder; CRL ist nicht im Dienststart verdrahtet |
+| Verifier-Identität und Anker | produktive PKI-Konfiguration |
+| WRPAC und WRPRC | Gate nur mit zusätzlichem Material aktiv; echte Registrar- und Access-CA-Profile fehlen |
 
 ### 5.3 Nicht nachgewiesen
 
-| Punkt | Beleg |
+| Punkt | Stand |
 |---|---|
-| Verfügbarkeit und horizontale Skalierung | `docs/eidas-arf-konformitaet.md`: „Nicht nachgewiesen", Zustände liegen im Arbeitsspeicher |
-| Offizieller ARF- und eIDAS-Konformitätsnachweis | `docs/eidas-arf-konformitaet.md:37`: „Nicht erfüllt/nicht nachgewiesen" |
-| Interoperabilität mit einer echten Wallet | **nicht gelaufen**, siehe Abschnitt 4 |
-| Externes Security-Review | [interne Notiz, nicht veröffentlicht]: nicht vorhanden |
-
-### 5.4 Als Arbeitsname geführt
-
-Der Produktname in diesem Dokument ist ein Arbeitsname. Die Namensentscheidung ist offen.
+| Interoperabilität mit einer echten Wallet | nicht getestet, siehe [Teststand](#teststand-in-einem-satz) |
+| Test in einer Sandbox, auch nicht in der SPRIND-Sandbox | nicht getestet, kein Zugang |
+| Offizieller ARF- und eIDAS-Konformitätsnachweis | nicht vorhanden |
+| Externes Security-Review oder Penetrationstest | nicht vorhanden |
+| Verfügbarkeit und horizontale Skalierung | nicht nachgewiesen, Zustände liegen im Arbeitsspeicher |

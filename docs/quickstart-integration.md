@@ -1,13 +1,17 @@
 # Quickstart Integration
 
-Für einen Entwickler, der den Prüfdienst lokal ansprechen will. Voraussetzung:
-Node 22, ein checkout dieses Repositorys, `npm ci`. **Kein Docker, kein
-Colima.** Bearbeitet am 30.09.2026 auf `main` commit `88f9cb8`.
+Für Entwicklerinnen und Entwickler, die den Prüfdienst lokal ansprechen
+wollen, bevor sie ihn in eine eigene Anwendung einbinden. Voraussetzungen:
+Node.js 22.12 oder neuer, ein Klon dieses Repositorys und `npm ci`. Docker ist
+nicht nötig.
 
-> **Produktname: `Attack`.** Arbeitsname.
+Der Dienst läuft hier im Entwicklungsbetrieb mit TEST-Mandanten,
+TEST-Schlüsseln und TEST-Zertifikaten. Eine echte Wallet kommt nicht vor; die
+Wallet-Antwort wird aus der Mock-Wallet des Repositorys erzeugt.
 
-Alle Ausgaben in diesem Dokument sind wörtlich kopiert. Keine ist erfunden und
-keine ist zusammengebaut.
+Alle Ausgaben stammen aus einem echten Lauf und sind wörtlich übernommen.
+`sessionId`, `state`, `expiresAt` und das Request Object sind bei jedem Lauf
+andere.
 
 ## 0. Dienst starten
 
@@ -38,8 +42,9 @@ HTTP 200
 {"ok":true,"status":"live","app":"attack-service"}
 ```
 
-Im Entwicklungsbetrieb sind zwei Testmandanten vorhanden, die Schlüssel stehen
-in `src/service/bootstrap.ts:40-41`:
+Im Entwicklungsbetrieb sind zwei Testmandanten vorhanden. Ihre Schlüssel stehen
+in `DEV_TEST_TENANTS` in `src/service/bootstrap.ts` und werden nur mit
+`ATTACK_DEV_MODE=true` außerhalb von Produktion angelegt:
 
 | Mandant | Schlüssel |
 |---|---|
@@ -72,17 +77,18 @@ HTTP 201
 
 `claims` darf nur Namen enthalten, die im Anfrageprofil des Mandanten stehen.
 Das Standardprofil `pid_basis` kennt `given_name` und `birth_date`
-(`src/service/profile.ts:13-18`). `family_name` gehört nicht dazu, siehe
-Fehlerfall F2.
+(`REQUEST_PROFILE_TEMPLATES` in `src/service/profile.ts`). `family_name` gehört
+nicht dazu, siehe Fehlerfall F2.
 
-`state` und `sessionId` sind hier gleich, das ist Zufall der Implementierung und
-keine Zusage für andere Fälle.
+`state` und `sessionId` sind hier gleich. Das ist eine Eigenschaft der
+aktuellen Implementierung und keine Zusage. Eine Integration sollte beide
+Werte getrennt behandeln.
 
 ## 2. Antwort der Wallet simulieren
 
-Eine echte Wallet steht hier nicht zur Verfügung. Der Nachweis wird aus dem
-Mock-Wallet des Repositorys erzeugt, das ist Testmaterial ohne jede Verbindung
-zu einer Wallet oder einem Aussteller.
+Eine echte Wallet steht hier nicht zur Verfügung. Der Nachweis wird aus der
+Mock-Wallet des Repositorys erzeugt. Das ist Testmaterial ohne Verbindung zu
+einer echten Wallet oder einem echten Aussteller.
 
 ```bash quickstart
 node --experimental-strip-types tools/quickstart-sdjwt.mjs > /tmp/wallet.txt
@@ -119,21 +125,24 @@ HTTP 200
 ```
 
 **Das ist kein Fehler, sondern gewollt.** Bei einer Ablehnung hinterlegt der
-Dienst kein Ergebnis. Geprüft in
-`src/service/issuer-revocation.test.ts:228`, dort steht als Grund
-"kein Ergebnis bei gesperrtem Zertifikat".
+Dienst kein Ergebnis. Ein Test sichert das ab: „gesperrtes
+Aussteller-Zertifikat -> Präsentation abgelehnt (issuer_certificate_revoked)“
+in `src/service/issuer-revocation.test.ts` prüft, dass der Status danach
+`pending` bleibt.
 
 **Was das für eine Integration heißt:** Aus `valid: false` folgt **kein**
 abrufbares Ergebnis. Wer auf ein Ergebnis wartet, wartet vergeblich, bis die
 Sitzung verfällt. Das Ergebnis wird nur dann abgelegt, wenn die Prüfung
 durchläuft. Wer beides braucht, muss die Antwort von Schritt 2 auswerten.
 
-Sitzungen verfallen nach 300 Sekunden im Entwicklungsbetrieb, das Ergebnis
-selbst nach 60 Sekunden (`src/config.ts:50`).
+Sitzungen verfallen ohne eigene Angabe im Mandanten nach 300 Sekunden
+(`src/service/tenant.ts`), ein fertiges Ergebnis nach 60 Sekunden
+(`DEFAULT_RESULT_TTL_SECONDS` in `src/config.ts`, einstellbar über
+`ATTACK_RESULT_TTL_SECONDS`). Ein Ergebnis lässt sich genau einmal abrufen.
 
 ## 4. Fehlerfälle
 
-Alle Codes aus `docs/fehlercodes.md`, dort mit Zeile belegt.
+Alle Codes sind in [Fehlercodes](fehlercodes.md) beschrieben.
 
 ### F1, unbekannter Zustand
 
@@ -149,7 +158,8 @@ HTTP 422
 {"ok":false,"valid":false,"error":"unknown_state"}
 ```
 
-`docs/fehlercodes.md:165`. Ein `state`, zu dem kein offener Auftrag gehört.
+Ein `state`, zu dem kein offener Auftrag gehört. HTTP 422 heißt: Die
+Präsentation konnte nicht verarbeitet werden.
 
 ### F2, unvollständige oder unbekannte Angabe
 
@@ -165,8 +175,8 @@ HTTP 400
 {"error":"claims_invalid"}
 ```
 
-`docs/fehlercodes.md:71`. `family_name` steht nicht im Anfrageprofil. Der
-Dienst nennt absichtlich keinen Detailgrund, siehe `src/service/app.ts:291-293`.
+`family_name` steht nicht im Anfrageprofil. Der Dienst nennt absichtlich
+keinen Detailgrund, sondern nur den festen Code (`src/service/app.ts`).
 
 ### F3, fehlender oder falscher Schlüssel
 
@@ -181,7 +191,7 @@ HTTP 401
 {"error":"unauthorized"}
 ```
 
-`docs/fehlercodes.md:58`.
+Derselbe Code gilt für einen unbekannten Schlüssel.
 
 ### F4, abgelaufene Sitzung
 
@@ -189,12 +199,13 @@ Nur mit veränderter Zeit erzeugbar, deshalb hier nicht als ausführbares Beispi
 
 | Code | HTTP | Bedeutung |
 |---|---|---|
-| `not_found` | 404 | Sitzung unbekannt, gelöscht, verbraucht, abgelaufen oder einem fremden Mandanten gehörend. Bewusst nicht unterscheidbar, `docs/fehlercodes.md:60`. |
-| `session_expired` | 422 | Sitzung abgelaufen, `docs/fehlercodes.md:166`. |
+| `not_found` | 404 | Beim Ergebnisabruf: Sitzung unbekannt, gelöscht, verbraucht, abgelaufen oder einem fremden Mandanten gehörend. Bewusst nicht unterscheidbar. |
+| `session_expired` | 422 | Bei `POST /direct_post`: Sitzung abgelaufen. |
 
-Warum nicht ausführbar: Die Ablaufzeit steht im Mandantenprofil in Sekunden,
-`src/service/tenant.ts:37`. Ein Schnelllauf ließe sich nur mit verändertem
-Profil bauen, das wäre ein anderer Dienst als der hier beschriebene.
+Warum nicht ausführbar: Die Ablaufzeit steht in Sekunden im Mandanten
+(`requestTtlSeconds` in `src/service/tenant.ts`). Ein schneller Ablauf ließe
+sich nur mit einem veränderten Mandanten zeigen, also nicht mit dem hier
+beschriebenen Dienst.
 
 ## 5. Dienst beenden
 
@@ -204,8 +215,10 @@ pkill -f "src/service/run.ts"
 
 ## 6. Selbsttest dieser Beispiele
 
-Die Befehle in diesem Dokument werden von einem Test ausgeführt, nicht nur
-beschrieben:
+Die `curl`-Beispiele in diesem Dokument werden von einem Test ausgeführt, nicht
+nur beschrieben. Er prüft, dass jeder Befehl läuft und den dokumentierten
+Statuscode liefert. Der Startbefehl und `pkill` laufen im Test nicht; der Test
+startet den Dienst selbst, mit eigenem Testmandanten.
 
 ```bash
 npx vitest run src/quickstart-beispiele.test.ts
@@ -216,18 +229,17 @@ der dokumentierte Statuscode nicht mehr stimmt, schlägt der Test fehl.
 
 ## 7. Was der Dienst heute nicht kann
 
-Alles hier ist dem Stand von `main` commit `88f9cb8` vom 30.09.2026
-zugeordnet. Belege in `docs/interop-matrix.md`.
+Belege und Einzelheiten stehen in der [Interoperabilitätsmatrix](interop-matrix.md).
 
 | Nicht vorhanden | Bedeutung für eine Integration |
 |---|---|
-| **mdoc** | Anfragen und Präsentationen laufen ausschließlich im Format `dc+sd-jwt`. Eine Wallet, die mdoc verlangt, wird nicht bedient. `docs/interop-matrix.md` Abschnitt 3. |
-| **LOTL** | Es gibt keine Trust List nach TS 119 612. Geprüft wird nur, was als Anker konfiguriert ist. Deshalb endet Schritt 2 mit `issuer_trust_anchor_not_found`. `docs/interop-matrix.md` Abschnitt 3. |
-| **Credential Sets** | Nicht implementiert. `docs/interop-matrix.md` Abschnitt 3. |
-| **Registratur-Anbindung** | Der Client existiert im Code, wird aber nicht verdrahtet. `docs/interop-matrix.md` Abschnitt 3. |
-| **Test mit einer echten Wallet** | Es wurde **kein** Test gegen eine echte Wallet durchgeführt. Der Nachweis in Schritt 2 stammt aus lokal erzeugtem Testmaterial. `docs/interop-matrix.md` Abschnitt 4. |
-| **Zertifizierung** | Es liegt weder eine Zertifizierung noch ein Konformitätsnachweis vor. `docs/eidas-arf-konformitaet.md:4`. |
-| **Externe Prüfung** | Weder Penetrationstest noch externes Review. [interne Notiz, nicht veröffentlicht]. |
+| **mdoc** | Anfragen und Präsentationen laufen ausschließlich im Format `dc+sd-jwt`. Eine Wallet, die nur mdoc anbietet, wird nicht bedient. |
+| **LOTL** | Es gibt keine Trust List nach ETSI TS 119 612. Geprüft wird nur, was als Anker konfiguriert ist. Deshalb endet Schritt 2 mit `issuer_trust_anchor_not_found`. |
+| **Credential Sets** | Nicht implementiert. |
+| **Registrar-Anbindung** | Der Client existiert im Code, ist aber nicht verdrahtet. |
+| **Test mit einer echten Wallet** | Der Dienst wurde Ende zu Ende nur gegen die Mock-Wallet dieses Repositorys getestet. Mit einer echten Wallet, einer Sandbox (auch nicht der SPRIND-Sandbox) oder einer nationalen Wallet wurde er nicht getestet. |
+| **Zertifizierung** | Es liegt weder eine Zertifizierung noch ein Konformitätsnachweis vor ([eIDAS und ARF Zuordnung](eidas-arf-konformitaet.md)). |
+| **Externe Prüfung** | Weder Penetrationstest noch externes Security-Review ([Sicherheit](sicherheit.md)). |
 | **Referenzkunden** | Es gibt keine. |
-| **Datenhaltung** | Ergebnisse liegen nur im Arbeitsspeicher und sind flüchtig. Für Nachweiszwecke reicht das nicht, `docs/bedrohungsmodell.md` S15. |
-| **Produktionsbetrieb** | Hier läuft der Dienst im Entwicklungsbetrieb mit Testmaterial, Port 18100, ohne TLS. |
+| **Datenhaltung** | Sitzungen und Ergebnisse liegen nur im Arbeitsspeicher und sind flüchtig. Als Nachweis gegenüber Dritten reicht das nicht ([Bedrohungsmodell](bedrohungsmodell.md), S15). |
+| **Produktionsbetrieb** | Hier läuft der Dienst im Entwicklungsbetrieb mit Testmaterial, auf Port 18100 und ohne TLS. Was für den Produktionsbetrieb nötig ist, steht im [Integrationsleitfaden](integration-guide.de.md) und in [Deployment](deployment.md). |
