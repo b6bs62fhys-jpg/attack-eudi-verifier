@@ -81,6 +81,11 @@ export interface BuildSdJwtOptions {
   withheldDisclosures?: Record<string, unknown>;
   /** Zusätzliche Zertifikate (Base64-DER) hinter dem Aussteller-Zertifikat im x5c-Header. */
   extraX5c?: string[];
+  /**
+   * `iat` des KB-JWT in Sekunden. Standard: jetzt. Für Tests mit einer
+   * verstellten Dienstuhr, damit das KB-JWT zur Uhr des Dienstes passt.
+   */
+  kbIat?: number;
 }
 
 export interface BuildSdJwtResult {
@@ -162,7 +167,7 @@ export async function buildSdJwtVc(options: BuildSdJwtOptions): Promise<BuildSdJ
 
   if (holderKey && nonce) {
     const sdHashOfToken = await sha256Base64url(sdJwt);
-    const kbPayload: Record<string, unknown> = { iat: now, nonce, sd_hash: sdHashOfToken };
+    const kbPayload: Record<string, unknown> = { iat: options.kbIat ?? now, nonce, sd_hash: sdHashOfToken };
     if (audience) kbPayload.aud = audience;
     kbJwt = await new SignJWT(kbPayload as JWTPayload).setProtectedHeader({ alg: 'ES256', typ: 'kb+jwt' }).sign(holderKey.privateKey);
     sdJwt += kbJwt;

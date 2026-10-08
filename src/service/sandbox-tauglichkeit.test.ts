@@ -382,3 +382,26 @@ describe('d) Durchlauf mit deutscher PID (urn:eudi:pid:de:1)', () => {
     assert.equal(body.valid, false, JSON.stringify(body));
   });
 });
+
+describe('Verschlüsselungsschlüssel in client_metadata.jwks', () => {
+  it('trägt nur die nötigen Felder, kein key_ops und kein ext (Interop mit walt.id wallet-api2)', async () => {
+    const tenants = new TenantStore();
+    tenants.add({ id: 'jwk', name: 'JWK', apiKey: 'schluessel-jwk-1234' });
+    const verifier = await generateTestKeyMaterial('JWK Verifier TEST');
+    const keys: ServiceKeys = { privateKey: verifier.privateKey, publicKey: verifier.publicKey, publicJwk: verifier.publicJwk, certificateChain: [verifier.certDerBytes] };
+    const service = new VerifierService(tenants, new AuditLog(), keys, verifier.certDerBytes, undefined, undefined, undefined, undefined, true, DEV_TEST_OPTIONS);
+    service.baseUrl = 'http://127.0.0.1:9';
+    const out = await service.createRequest('jwk', {});
+    const payload = decodeJwt(out.requestObject);
+    const jwk = (payload.client_metadata as { jwks: { keys: Array<Record<string, unknown>> } }).jwks.keys[0] as Record<string, unknown>;
+    assert.deepEqual(Object.keys(jwk).sort(), ['alg', 'crv', 'kid', 'kty', 'use', 'x', 'y']);
+    assert.equal(jwk.alg, 'ECDH-ES');
+    assert.equal(jwk.use, 'enc');
+    assert.equal(jwk.kty, 'EC');
+    assert.equal(jwk.crv, 'P-256');
+    assert.equal(jwk.kid, out.sessionId);
+    assert.equal('key_ops' in jwk, false);
+    assert.equal('ext' in jwk, false);
+    assert.equal('d' in jwk, false, 'kein privater Anteil');
+  });
+});

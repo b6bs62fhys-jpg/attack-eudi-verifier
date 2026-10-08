@@ -38,6 +38,10 @@ test
 docs
 site
 tools
+# Ausnahme: src/adr-belege.test.ts braucht diese beiden Dateien im Typecheck der
+# Build-Stufe (siehe Dockerfile). Sie gelangen nicht in das Produktionsimage.
+!tools/belege-pruefen.mjs
+!tools/belege-pruefen.d.mts
 monitoring
 examples
 *.log

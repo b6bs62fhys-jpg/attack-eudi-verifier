@@ -13,14 +13,14 @@
  */
 import {jwtVerify, createLocalJWKSet, decodeProtectedHeader} from 'jose';
 
-import {buildHaipQuery, createSignedAuthorizationRequest, decryptAuthorizationResponse, StaticTrustStore, verifyAuthorizationResponse, type AuthorizationResponse} from '@openeudi/openid4vp';
+import {createSignedAuthorizationRequest, decryptAuthorizationResponse, StaticTrustStore, verifyAuthorizationResponse, type AuthorizationResponse} from '@openeudi/openid4vp';
 
 import {VpSessionStore} from '../lib/session.ts';
 import {AuditLog, type AuditEvent} from './audit.ts';
 import {TenantStore} from './tenant.ts';
 import {buildAuthorizationRequestJar, DEFAULT_SUPPORTED_ENC_VALUES, VP_FORMATS_SUPPORTED, type JarVerifierInfo} from '../onboarding/jar.ts';
 import {ErrTenantRegistrationInvalid, OnboardingError} from '../onboarding/errors.ts';
-import {ConfigError} from '../config.ts';
+import {ConfigError, DEFAULT_REQUEST_OBJECT_TTL_SECONDS} from '../config.ts';
 import {validateRegistrationRefRaw, type RegistrationRef} from '../onboarding/registration-ref.ts';
 import type { IssuerTrustPolicy } from '../trustlist/monitor.ts';
 import type { OnboardingGatePolicy } from '../onboarding/onboarding-gate.ts';
@@ -29,7 +29,8 @@ import {assertCredentialStatusAllowed, CredentialStatusError, type CredentialSta
 import {enforceIssuerChainRevocation} from './issuer-revocation.ts';
 import {MAX_JWE_CHARS, presentationErrorCode, ServiceInputError, validateClaims, validateVct, vpTokenLimitError} from './limits.ts';
 import {certificateValidityFailure, chainValidityFailure, DEFAULT_CLOCK_SKEW_SECONDS, type ValidityFailure} from '../lib/cert-validity.ts';
-import {nurAngefragteClaims} from './profile.ts';
+import {buildProfileQuery, checkRequirements, nurAngefragteClaims} from './profile.ts';
+import {kbJwtFailure, publicCodeFor, sdJwtStructureFailure, type SdJwtStructureOptions} from './sdjwt-checks.ts';
 
 export interface CreateRequestInput {
   claims?: string[];
@@ -72,6 +73,14 @@ export interface CreateRequestOutput {
  */
 export function buildWalletUrl(clientId: string, requestUri: string): string {
   return `openid4vp://?client_id=${encodeURIComponent(clientId)}&request_uri=${encodeURIComponent(requestUri)}&request_uri_method=get`;
+}
+
+/** Antwort auf `direct_post`; `redirect_uri` nur, wenn ATTACK_REDIRECT_URI gesetzt ist. */
+export interface PresentationOutcome {
+  ok: boolean;
+  valid: boolean;
+  error?: string;
+  redirect_uri?: string;
 }
 
 export type ResultStatus =
@@ -122,6 +131,10 @@ export interface VerifierServiceOptions {
    * weil die Bibliothek keine zusätzlichen Claims erlaubt.
    */
   verifierInfo?: readonly JarVerifierInfo[];
+  /** Optional, Standard aus: Adresse für `redirect_uri` in der Antwort auf direct_post. */
+  redirectUri?: string;
+  /** Gültigkeit des Request Objects in Sekunden (`exp`), Standard 120. */
+  requestObjectTtlSeconds?: number;
   /**
    * Zähler für Verwendungen der OCSP-Gnadenfrist (B8). Der OCSP-Beobachter in
    * `bootstrapService` erhöht ihn; der Dienst vergleicht den Wert vor und nach
@@ -159,6 +172,8 @@ interface PendingPresentation {
   vct: string;
   claims: string[];
   credentialId: string;
+  /** Claims, die genau `true` sein müssen (Altersprüfung), aus dem Profil des Mandanten. */
+  mustBeTrue?: string[];
 }
 
 type EncryptionPublicJwk = JsonWebKey & { kid?: string };
@@ -244,6 +259,8 @@ export class VerifierService {
   private readonly clockSkewSeconds: number;
   private readonly revocationTimeoutMs: number;
   private readonly verifierInfo: readonly JarVerifierInfo[];
+  private readonly redirectUri?: string;
+  private readonly requestObjectTtlSeconds: number;
 
   constructor(
     tenants: TenantStore,
@@ -277,6 +294,8 @@ export class VerifierService {
     this.revocationTimeoutMs = options.revocationTimeoutMs ?? DEFAULT_REVOCATION_TIMEOUT_MS;
     this.gracePeriodSeen = options.gracePeriodSeen ?? { count: 0 };
     this.verifierInfo = options.verifierInfo ?? [];
+    this.redirectUri = options.redirectUri;
+    this.requestObjectTtlSeconds = options.requestObjectTtlSeconds ?? DEFAULT_REQUEST_OBJECT_TTL_SECONDS;
     this.tenants = tenants;
     this.audit = audit;
     this.keys = keys;
@@ -350,10 +369,14 @@ export class VerifierService {
 
   private async freshEncryptionKeyPair(sessionId: string): Promise<{ publicJwk: EncryptionPublicJwk; privateKey: CryptoKey }> {
     const keyPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']);
-    const publicJwk = (await crypto.subtle.exportKey('jwk', keyPair.publicKey)) as EncryptionPublicJwk;
-    publicJwk.alg = 'ECDH-ES';
-    publicJwk.use = 'enc';
-    publicJwk.kid = sessionId;
+    const exported = (await crypto.subtle.exportKey('jwk', keyPair.publicKey)) as EncryptionPublicJwk;
+    // Nur die Felder, die ein JWK-Set für einen Verschlüsselungsschlüssel braucht.
+    // Der WebCrypto-Export liefert zusätzlich `key_ops: []` und `ext: true`. Ein
+    // leeres `key_ops` heißt nach RFC 7517 "keine Operation erlaubt"; die walt.id
+    // Wallet (wallet-api2) überging den Schlüssel deshalb mit "client_metadata.jwks
+    // must contain an encryption key with alg=ECDH-ES". Die offizielle
+    // Beispielanfrage enthält nur kty, crv, x, y, alg und kid.
+    const publicJwk: EncryptionPublicJwk = { kty: exported.kty, crv: exported.crv, x: exported.x, y: exported.y, alg: 'ECDH-ES', use: 'enc', kid: sessionId };
     return { publicJwk, privateKey: keyPair.privateKey };
   }
 
@@ -390,7 +413,7 @@ export class VerifierService {
     session.decryptionKey = enc.privateKey;
     const requestUri = `${this.baseUrl}/v1/verification-requests/${session.id}/request-object`;
 
-    const haipQuery = buildHaipQuery({ credentialId: profile.credentialId, format: 'dc+sd-jwt', vctValues: [vct], claims });
+    const haipQuery = buildProfileQuery({ credentialId: profile.credentialId, vct, claims });
 
     // Gate: Ist das onboardschaltete Onboarding-Gate aktiv, muss der anfragende
     // Mandant eine gültige TEST-WRPAC/WRPRC-Registrierung besitzen. Der
@@ -421,7 +444,9 @@ export class VerifierService {
     let requestObject: string;
     let audience: string;
     try {
-      if (registrationRef || this.verifierInfo.length > 0) {
+      // Der Bibliothekspfad kennt keine einstellbare Gültigkeit (fest 120 s),
+      // deshalb signiert der eigene Pfad auch bei abweichender Gültigkeit.
+      if (registrationRef || this.verifierInfo.length > 0 || this.requestObjectTtlSeconds !== DEFAULT_REQUEST_OBJECT_TTL_SECONDS) {
         const jar = await buildAuthorizationRequestJar({
           requestUri,
           responseUri,
@@ -430,6 +455,7 @@ export class VerifierService {
           dcqlQuery: haipQuery as unknown,
           ...(registrationRef ? { registrationRef } : {}),
           ...(this.verifierInfo.length > 0 ? { verifierInfo: this.verifierInfo } : {}),
+          ttlSeconds: this.requestObjectTtlSeconds,
           privateKey: this.keys.privateKey,
           publicKey: this.keys.publicKey,
           allowSelfSignedCertificate: this.allowSelfSignedCertificate,
@@ -468,7 +494,7 @@ export class VerifierService {
       throw error;
     }
 
-    this.pendingByState.set(session.id, { tenantId, sessionId: session.id, nonce: session.nonce, audience, vct, claims, credentialId: profile.credentialId });
+    this.pendingByState.set(session.id, { tenantId, sessionId: session.id, nonce: session.nonce, audience, vct, claims, credentialId: profile.credentialId, ...(profile.mustBeTrue ? { mustBeTrue: profile.mustBeTrue } : {}) });
     this.requestObjects.set(session.id, requestObject);
     this.auditTenant(tenantId, 'request_created', `session=${session.id}`);
 
@@ -520,15 +546,30 @@ export class VerifierService {
     let claims: Record<string, unknown> = {};
     let issuerCountry = '';
     let error: string;
+
+    // Strukturprüfung nach RFC 9901 vor der Bibliothek (doppelte Offenlegungen
+    // und Digests, Salt kein Text), siehe sdjwt-checks.ts. Die Nutzdaten des
+    // Tokens sind hier noch ungeprüft; es wird nur gelesen, nichts davon
+    // verwendet. Unlesbare Token überlässt der Dienst der Bibliothek.
+    const rawToken = Object.values(vpToken)[0]?.[0];
+    const checkOptions: SdJwtStructureOptions = {
+      now: new Date(this.now()),
+      maxKbAgeSeconds: (this.tenants.byId(pending.tenantId)?.requestTtlSeconds ?? 300) + this.clockSkewSeconds,
+      clockSkewSeconds: this.clockSkewSeconds,
+    };
+    if (typeof rawToken === 'string') {
+      const structure = sdJwtStructureFailure(rawToken);
+      const code = structure ? publicCodeFor(structure) : undefined;
+      if (structure && code) {
+        this.auditTenant(pending.tenantId, 'presentation_invalid', `session=${state} reason=${structure}`);
+        return { ok: true, valid: false, error: code };
+      }
+    }
+
     try {
       const ver = await verifyAuthorizationResponse(
         { vp_token: vpToken, state },
-        buildHaipQuery({
-          credentialId: pending.credentialId,
-          format: 'dc+sd-jwt',
-          vctValues: [pending.vct],
-          claims: pending.claims,
-        }),
+        buildProfileQuery({ credentialId: pending.credentialId, vct: pending.vct, claims: pending.claims }),
         {
           trustedCertificates: [],
           trustStore: new StaticTrustStore([...trustedAnchors]),
@@ -603,6 +644,38 @@ export class VerifierService {
       }
     }
 
+    // Header und Zeitfenster des KB-JWT (RFC 9901 Abschnitte 4.3 und 7.3), erst
+    // nach den Echtheitsprüfungen, damit deren genauere Fehlercodes Vorrang haben.
+    if (valid && typeof rawToken === 'string') {
+      const kb = kbJwtFailure(rawToken, checkOptions);
+      if (kb) {
+        this.auditTenant(pending.tenantId, 'presentation_invalid', `session=${state} reason=${kb}`);
+        return { ok: true, valid: false, error: 'presentation_invalid' };
+      }
+    }
+
+    // Bedingungen des Profils (Altersprüfung). Erst nach allen Prüfungen der
+    // Echtheit, damit ein gesperrtes oder gefälschtes Credential nie als
+    // "Nein" erscheint, sondern mit seinem eigentlichen Fehler abgelehnt wird.
+    if (valid && pending.mustBeTrue) {
+      const check = checkRequirements({ mustBeTrue: pending.mustBeTrue }, claims);
+      if (!check.met && check.reason === 'age_claim_invalid') {
+        this.auditTenant(pending.tenantId, 'presentation_invalid', `session=${state} reason=${check.reason}`);
+        return { ok: true, valid: false, error: check.reason };
+      }
+      if (!check.met) {
+        // Ein klares Nein: echtes, gültiges Credential, Bedingung nicht erfüllt.
+        // Der Mandant bekommt ein abgeschlossenes Ergebnis (valid false, kein
+        // Claim-Wert), statt ewig auf "pending" zu stehen.
+        this.resultsFor(pending.tenantId).set(state, {
+          result: { at: new Date().toISOString(), valid: false, claims: {}, issuerCountry, error: check.reason },
+          expiresAt: this.now() + this.resultTtlMs,
+        });
+        this.auditTenant(pending.tenantId, 'presentation_invalid', `session=${state} reason=${check.reason}`);
+        return { ok: true, valid: false, error: check.reason };
+      }
+    }
+
     if (valid) {
       this.resultsFor(pending.tenantId).set(state, {
         result: { at: new Date().toISOString(), valid, claims, issuerCountry, error },
@@ -614,7 +687,37 @@ export class VerifierService {
   }
 
   /** Präsentation (direct_post) verarbeiten. Zustand enthält Auftragszuordnung. */
-  async handlePresentation(state: string, vpToken: Record<string, Array<string | object>>): Promise<{ ok: boolean; valid: boolean; error?: string }> {
+  /**
+   * Präsentation (direct_post) verarbeiten. Ist `redirectUri` konfiguriert und
+   * wurde die Präsentation verarbeitet (`ok`), enthält die Antwort zusätzlich
+   * `redirect_uri` für den Ablauf auf einem Gerät. Ohne Konfiguration bleibt die
+   * Antwort unverändert.
+   */
+  async handlePresentation(state: string, vpToken: Record<string, Array<string | object>>): Promise<PresentationOutcome> {
+    const sessionId = this.pendingByState.get(state)?.sessionId;
+    return this.withRedirect(await this.receivePresentation(state, vpToken), sessionId);
+  }
+
+  /** Wie `handlePresentation`, für die verschlüsselte Antwort (direct_post.jwt). */
+  async handleEncryptedPresentation(jwe: string): Promise<PresentationOutcome> {
+    let kid: unknown;
+    try {
+      kid = decodeProtectedHeader(jwe).kid;
+    } catch {
+      kid = undefined;
+    }
+    const sessionId = typeof kid === 'string' ? this.pendingByState.get(kid)?.sessionId : undefined;
+    return this.withRedirect(await this.receiveEncryptedPresentation(jwe), sessionId);
+  }
+
+  private withRedirect(outcome: PresentationOutcome, sessionId: string | undefined): PresentationOutcome {
+    if (!this.redirectUri || !outcome.ok || !sessionId) return outcome;
+    const target = new URL(this.redirectUri);
+    target.searchParams.set('session_id', sessionId);
+    return { ...outcome, redirect_uri: target.toString() };
+  }
+
+  private async receivePresentation(state: string, vpToken: Record<string, Array<string | object>>): Promise<PresentationOutcome> {
     const limitError = vpTokenLimitError(state, vpToken);
     if (limitError) {
       this.audit.record('unknown', 'presentation_rejected', `reason=${limitError}`);
@@ -649,7 +752,7 @@ export class VerifierService {
     }
   }
 
-  async handleEncryptedPresentation(jwe: string): Promise<{ ok: boolean; valid: boolean; error?: string }> {
+  private async receiveEncryptedPresentation(jwe: string): Promise<PresentationOutcome> {
     if (typeof jwe !== 'string' || jwe.length > MAX_JWE_CHARS) {
       this.audit.record('unknown', 'presentation_rejected', 'reason=jwe_too_long');
       return { ok: false, valid: false, error: 'jwe_too_long' };

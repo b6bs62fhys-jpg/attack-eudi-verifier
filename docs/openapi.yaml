@@ -136,6 +136,10 @@ components:
         error:
           type: string
           description: Ablehnungsgrund, siehe docs/fehlercodes.md
+        redirect_uri:
+          type: string
+          format: uri
+          description: Nur wenn ATTACK_REDIRECT_URI gesetzt ist (Standard aus) und die Präsentation verarbeitet wurde. Seite des Betreibers für den Ablauf auf einem Gerät, mit angehängter `session_id`.
 
 paths:
   /live:

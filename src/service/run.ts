@@ -60,6 +60,7 @@ const server = createApp({
   // Mandant, die docs/lasttest.md als Obergrenze ausweist.
   rateLimits: config.rateLimits,
   rateLimiter: new RateLimiter({ windowMs: config.rateLimits.windowSeconds * 1000 }),
+  ...(boot.trustedProxies ? { trustedProxies: boot.trustedProxies } : {}),
 });
 
 const host = config.host ?? '127.0.0.1';

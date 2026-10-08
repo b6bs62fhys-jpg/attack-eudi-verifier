@@ -5,11 +5,14 @@
  *
  * Das Credential verweist mit `status.status_list = { idx, uri }` auf eine
  * signierte Statusliste (`typ: statuslist+jwt`, draft -21 Section 5.1). Die Liste wird mit Zeit- und
- * Größengrenze abgerufen, ihre Signatur gegen die konfigurierten
- * Unterzeichner-Zertifikate geprüft (x5c-Blatt muss byte-gleich einem
- * konfigurierten Zertifikat sein, Signaturprüfung über jose), das Format
- * geprüft, entpackt (node:zlib, mit Größengrenze) und der Wert an `idx`
- * gelesen. Nur 0x00 (VALID) lässt die Prüfung passieren.
+ * Größengrenze abgerufen. Das Unterzeichner-Zertifikat (x5c-Blatt) muss
+ * entweder byte-gleich einem konfigurierten Anker sein oder über die x5c-Kette
+ * zu einem Anker führen (Kettenprüfung in `src/lib/cert-chain.ts`: Namen,
+ * Signaturen, Gültigkeit, Schlüsselverwendung). Im zweiten Fall wird die
+ * Kette außerdem gegen die konfigurierte Sperrquelle geprüft; ohne
+ * Sperrquelle wird abgelehnt. Danach Signaturprüfung der Liste über jose,
+ * Formatprüfung, Entpacken (node:zlib, mit Größengrenze) und das Lesen des
+ * Wertes an `idx`. Nur 0x00 (VALID) lässt die Prüfung passieren.
  *
  * Jeder Fehlerpfad lehnt ab, mit eigenem Code (siehe docs/fehlercodes.md).
  * Ein Credential OHNE Statusverweis wird abgelehnt
@@ -22,9 +25,12 @@ import { compactVerify, decodeProtectedHeader } from 'jose';
 import { X509Certificate } from '@peculiar/x509';
 
 import { ConfigError, ENV_ATTACK_DEV_MODE } from '../config.ts';
-import { certificateValidityFailure, DEFAULT_CLOCK_SKEW_SECONDS } from '../lib/cert-validity.ts';
+import { verifyChainToAnchor } from '../lib/cert-chain.ts';
+import { DEFAULT_CLOCK_SKEW_SECONDS } from '../lib/cert-validity.ts';
 import { DEFAULT_FETCH_MAX_BYTES, DEFAULT_FETCH_TIMEOUT_MS, fetchLimited, LimitedFetchError, type FetchImpl } from '../lib/limited-fetch.ts';
-import { STRICT_MODE, type RuntimeMode } from '../onboarding/revocation.ts';
+import { DEFAULT_REVOCATION_TIMEOUT_MS, STRICT_MODE, type RevocationChecker, type RuntimeMode } from '../onboarding/revocation.ts';
+import { OnboardingError } from '../onboarding/errors.ts';
+import { enforceIssuerChainRevocation } from './issuer-revocation.ts';
 
 export const STATUS_LIST_JWT_TYPE = 'statuslist+jwt';
 export const STATUS_LIST_SUPPORTED_ALGS = ['ES256', 'ES384'] as const;
@@ -41,6 +47,8 @@ export type CredentialStatusErrorCode =
   | 'credential_status_unknown'
   | 'credential_revoked'
   | 'credential_suspended'
+  | 'status_list_signer_revoked'
+  | 'status_list_signer_revocation_failed'
   | 'certificate_expired'
   | 'certificate_not_yet_valid';
 
@@ -82,8 +90,20 @@ export function assertCredentialStatusAllowed(checker: CredentialStatusChecker |
 }
 
 export interface TokenStatusListCheckerOptions {
-  /** Zertifikate (DER), die Statuslisten unterschreiben dürfen. Leer: jede Prüfung scheitert. */
+  /**
+   * Vertrauensanker (DER) für Statuslisten-Unterzeichner. Das Unterzeichner-
+   * Zertifikat muss einem Anker entsprechen oder von einem Anker (auch über
+   * Zwischenzertifikate im x5c-Header) signiert sein. Leer: jede Prüfung scheitert.
+   */
   trustedSigners: () => readonly Uint8Array[];
+  /**
+   * Sperrquelle für Unterzeichner, die nicht selbst Anker sind. Ohne Angabe wird
+   * ein solcher Unterzeichner abgelehnt (fail closed); ein Unterzeichner, der
+   * selbst Anker ist, braucht sie nicht.
+   */
+  revocation?: RevocationChecker;
+  /** Zeitgrenze je Zertifikat der Sperrprüfung (ms), Standard 5.000. */
+  revocationTimeoutMs?: number;
   timeoutMs?: number;
   maxBytes?: number;
   /** Obergrenze für die entpackte Liste (Bytes). */
@@ -104,9 +124,13 @@ export class TokenStatusListChecker implements CredentialStatusChecker {
   private readonly allowInsecureHttp: boolean;
   private readonly fetchImpl?: FetchImpl;
   private readonly now: () => number;
+  private readonly revocation?: RevocationChecker;
+  private readonly revocationTimeoutMs: number;
 
   constructor(options: TokenStatusListCheckerOptions) {
     this.trustedSigners = options.trustedSigners;
+    this.revocation = options.revocation;
+    this.revocationTimeoutMs = options.revocationTimeoutMs ?? DEFAULT_REVOCATION_TIMEOUT_MS;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
     this.maxBytes = options.maxBytes ?? DEFAULT_FETCH_MAX_BYTES;
     this.maxDecompressedBytes = options.maxDecompressedBytes ?? 16 * 1024 * 1024;
@@ -190,18 +214,52 @@ export class TokenStatusListChecker implements CredentialStatusChecker {
       throw new CredentialStatusError('status_list_signature_invalid');
     }
 
-    let leafDer: Buffer;
+    let chainDer: Buffer[];
     try {
-      leafDer = Buffer.from(header.x5c[0], 'base64');
+      chainDer = (header.x5c as unknown[]).map((entry) => {
+        if (typeof entry !== 'string') throw new Error('x5c-Eintrag kein Text');
+        return Buffer.from(entry, 'base64');
+      });
     } catch {
       throw new CredentialStatusError('status_list_signature_invalid');
     }
-    const trusted = this.trustedSigners().some((der) => Buffer.compare(Buffer.from(der), leafDer) === 0);
-    if (!trusted) throw new CredentialStatusError('status_list_signature_invalid');
+    const leafDer = chainDer[0] as Buffer;
 
-    // Gültigkeitszeitraum des Unterzeichner-Zertifikats (Haertung 9).
-    const validity = certificateValidityFailure(new Uint8Array(leafDer), new Date(this.now()), this.clockSkewSeconds);
-    if (validity) throw new CredentialStatusError(validity);
+    // Kette zu einem Anker: Unterzeichner ist selbst Anker oder von einem Anker
+    // (über x5c-Zwischenzertifikate) signiert. Gültigkeit, Namen, Signaturen und
+    // Schlüsselverwendung der Kette prüft verifyChainToAnchor.
+    const anchors = this.trustedSigners();
+    const chain = await verifyChainToAnchor(
+      chainDer.map((der) => new Uint8Array(der)),
+      anchors,
+      new Date(this.now()),
+      this.clockSkewSeconds,
+    );
+    if (!chain.ok) {
+      if (chain.failure === 'certificate_expired' || chain.failure === 'certificate_not_yet_valid') throw new CredentialStatusError(chain.failure);
+      throw new CredentialStatusError('status_list_signature_invalid');
+    }
+    if (!chain.direct) {
+      // Der Unterzeichner ist nicht selbst Anker: seine Kette wird auf Sperrung
+      // geprüft, wie die Aussteller-Kette eines Credentials. Ohne Sperrquelle
+      // wird abgelehnt, nicht stillschweigend angenommen.
+      if (!this.revocation) throw new CredentialStatusError('status_list_signer_revocation_failed');
+      try {
+        await enforceIssuerChainRevocation(
+          this.revocation,
+          // Ohne den Anker am Ende: der Anker wird nie geprüft, und
+          // enforceIssuerChainRevocation ergänzt ihn selbst als Aussteller.
+          chain.path.slice(0, -1).map((cert) => new Uint8Array(cert.rawData)),
+          anchors,
+          this.revocationTimeoutMs,
+        );
+      } catch (e) {
+        if (e instanceof OnboardingError && (e.code === 'certificate_revoked' || e.code === 'certificate_suspended')) {
+          throw new CredentialStatusError('status_list_signer_revoked');
+        }
+        throw new CredentialStatusError('status_list_signer_revocation_failed');
+      }
+    }
 
     let payloadBytes: Uint8Array;
     try {

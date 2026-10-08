@@ -218,6 +218,11 @@ export interface components {
             valid: boolean;
             /** @description Fester, dokumentierter Fehlercode; keine internen Details. */
             error?: string;
+            /**
+             * Format: uri
+             * @description Nur wenn ATTACK_REDIRECT_URI gesetzt ist (Standard: aus) und die Präsentation verarbeitet wurde. Seite des Betreibers, zu der die Wallet im Ablauf auf einem Gerät navigieren soll; der Dienst hängt `session_id` an. Nicht für QR-Codes auf einem zweiten Gerät gedacht.
+             */
+            redirect_uri?: string;
         };
         VerificationResult: {
             /** Format: date-time */

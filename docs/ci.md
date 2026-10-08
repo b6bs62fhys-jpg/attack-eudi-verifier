@@ -209,7 +209,7 @@ immer grün. Der Test ist an der Wurzel behoben (ein gemeinsam injiziertes
 Gültigkeitsfenster für Issuer und Blatt statt einer pro Zertifikat gelesenen
 Uhr), der Wächter verhindert, dass so etwas unbemerkt zurückkommt.
 
-`npm run test:flake` wiederholt die neun zeitabhängigen Testdateien zehnmal.
+`npm run test:flake` wiederholt die zwölf zeitabhängigen Testdateien zehnmal (Stand 08.10.2026).
 Ein einzelner roter Durchlauf bricht ab. Die Laufzeit ist über `FLAKE_BUDGET_MS`
 im Skript (Vorgabe 8 Minuten) und `timeout-minutes` im Workflow begrenzt, damit
 ein hängender Durchlauf die Pipeline nicht aufhält.

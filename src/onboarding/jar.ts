@@ -9,7 +9,7 @@
  * an den Bibliothekspfad**: identischer Header `{ typ: 'oauth-authz-req+jwt',
  * alg, x5c }` in identischer Reihenfolge, Payload mit iss/aud/response_type/
  * response_mode/client_id/response_uri/nonce/state/dcql_query/client_metadata/
- * iat/exp (exp = iat + 120), client_id `x509_hash:<base64url(SHA-256(Blatt-DER))>`.
+ * iat/exp (exp = iat + 120, einstellbar über `ttlSeconds`), client_id `x509_hash:<base64url(SHA-256(Blatt-DER))>`.
  * Bewusste Zusätze unseres Pfads sind ausschließlich `request_uri` im Payload und
  * `registration_ref`. Zusätzlich unterstützt unser eigener Pfad — exakt wie der
  * Bibliothekspfad — Response-Verschlüsselung (direct_post.jwt): bei gesetzter
@@ -98,6 +98,8 @@ export interface JarBuildOptions {
   encryption?: JarEncryption;
   /** Für Tests fixierbare Zeit (Sekunden); Default: Zeitpunkt des Aufrufs. */
   now?: number;
+  /** Gültigkeit des Request Objects in Sekunden (`exp` = `iat` + Wert); Standard 120, wie im Bibliothekspfad. */
+  ttlSeconds?: number;
 }
 
 export interface JarResult {
@@ -142,7 +144,7 @@ export async function buildAuthorizationRequestJar(options: JarBuildOptions): Pr
     dcql_query: options.dcqlQuery,
     client_metadata: clientMetadata,
     iat: now,
-    exp: now + 120,
+    exp: now + (options.ttlSeconds ?? 120),
     ...(ref ? toRegistrationRefClaim(ref) : {}),
     ...(options.verifierInfo && options.verifierInfo.length > 0
       ? { verifier_info: options.verifierInfo.map((entry) => ({ format: entry.format, data: entry.data })) }

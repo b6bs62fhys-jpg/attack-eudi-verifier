@@ -198,7 +198,7 @@ function harness(verifier: TestKeyMaterial, anchors: () => readonly Uint8Array[]
     present: async (issuer, extraX5c) => {
       const created = await service.createRequest('tenant-z', {});
       const { payload } = await jwtVerify(created.requestObject, createLocalJWKSet({ keys: [verifier.publicJwk] }));
-      const built = await buildSdJwtVc({ issuerKey: issuer, holderKey: holder, nonce: String(payload.nonce), audience: String(payload.client_id), extraX5c });
+      const built = await buildSdJwtVc({ issuerKey: issuer, holderKey: holder, nonce: String(payload.nonce), audience: String(payload.client_id), extraX5c, kbIat: Math.floor(clock.now / 1000) });
       return { state: created.state, outcome: await service.handlePresentation(created.state, { pid: [built.sdJwt] }) };
     },
   };

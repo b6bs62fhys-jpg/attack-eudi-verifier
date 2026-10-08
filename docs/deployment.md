@@ -65,6 +65,24 @@ Optional:
   official developer guide states that the wallet rejects a request without
   `verifier_info`. A set but unusable file (unreadable, no JWT, several JWTs,
   `alg` missing or `none`, `exp` passed) aborts startup.
+- `ATTACK_TRUSTED_PROXIES`: optional. Comma separated IP addresses or CIDR
+  networks (IPv4 and IPv6) of reverse proxies in front of the service. Only if
+  the direct peer is in this list is `X-Forwarded-For` evaluated for the rate
+  limit of the public routes (read from the right: the first entry that is not
+  a trusted proxy is the client). For every other peer the header is ignored,
+  so a client cannot choose its own address. An invalid entry or a network with
+  prefix length 0 aborts startup. Without it all wallets behind a proxy share
+  one rate limit bucket.
+- `ATTACK_REDIRECT_URI`: optional, off by default. A page of the operator to
+  which the wallet navigates after the service answered `direct_post`; the
+  answer then carries `redirect_uri` (with `session_id` appended). For the
+  same-device flow only: with a QR code on a second device the link would open
+  on the wrong device. https only (http with `ATTACK_DEV_MODE=true`), no
+  fragment, no credentials.
+- `ATTACK_REQUEST_OBJECT_TTL_SECONDS`: validity of the signed request object
+  (`exp`), `30..600`, default `120`. A value other than 120 makes the service
+  sign the request object itself instead of using the library path, which has a
+  fixed 120 seconds.
 - `ATTACK_ISSUER_REVOCATION_SOURCES`: revocation sources for the issuer chain
   of presented credentials, in order of precedence: `ocsp`, `crl`,
   `ocsp,crl` (default) or `crl,ocsp`
@@ -81,6 +99,14 @@ issuer CA certificates and the German Registrar carry only CRL distribution
 points and no OCSP address. Verified CRLs are cached until their `nextUpdate`,
 at most 24 hours; errors are never cached. The onboarding gate uses its own
 checker without the 24 hour OCSP grace period of the credential path.
+
+Status list signer: the certificate that signs a token status list must be an
+issuer trust anchor itself or chain to one through the `x5c` header (names,
+signatures, validity, key usage: issuers need `cA`, `keyCertSign` if a key
+usage is present, `pathLenConstraint` is honoured; the leaf must allow
+`digitalSignature` if a key usage is present). In the second case the chain is
+checked against the same revocation sources as the issuer chain; without a
+revocation source it is rejected.
 
 Rate limiting:
 

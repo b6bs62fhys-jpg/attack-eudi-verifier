@@ -39,6 +39,24 @@ export const ENV_ATTACK_ISSUER_TRUST_ANCHORS_PEM = 'ATTACK_ISSUER_TRUST_ANCHORS_
  */
 export const ENV_ATTACK_PUBLIC_BASE_URL = 'ATTACK_PUBLIC_BASE_URL';
 /**
+ * Optional, standardmäßig aus. Adresse einer Seite des Betreibers, zu der die
+ * Wallet nach der Antwort des Dienstes navigieren soll (`redirect_uri` in der
+ * Antwort auf `direct_post`). Nur für den Ablauf auf einem einzigen Gerät: der
+ * Link öffnet sich im Browser des Geräts, auf dem die Wallet läuft, bei einem
+ * QR-Code auf einem zweiten Gerät wäre das das falsche Gerät. Der Dienst hängt
+ * `session_id` an. Muss https sein (http nur mit ATTACK_DEV_MODE=true).
+ */
+export const ENV_ATTACK_REDIRECT_URI = 'ATTACK_REDIRECT_URI';
+/**
+ * Gültigkeit eines Request Objects in Sekunden (30..600, Standard 120). Das ist
+ * das `exp` im signierten Request Object, also die Zeit, in der die Wallet es
+ * annehmen soll.
+ */
+export const ENV_ATTACK_REQUEST_OBJECT_TTL_SECONDS = 'ATTACK_REQUEST_OBJECT_TTL_SECONDS';
+export const DEFAULT_REQUEST_OBJECT_TTL_SECONDS = 120;
+export const REQUEST_OBJECT_TTL_MIN_SECONDS = 30;
+export const REQUEST_OBJECT_TTL_MAX_SECONDS = 600;
+/**
  * Erlaubte Uhrabweichung in Sekunden für Gültigkeitszeiträume von
  * Zertifikaten und Zeitangaben signierter Objekte (0..300, Standard 60).
  */
@@ -96,6 +114,10 @@ export interface AppConfig {
   host?: string;
   /** Öffentliche Basis-URL ohne abschließenden Schrägstrich, falls gesetzt. */
   publicBaseUrl?: string;
+  /** Adresse für `redirect_uri` an die Wallet, falls gesetzt (Standard: aus). */
+  redirectUri?: string;
+  /** Gültigkeit eines Request Objects in Sekunden. */
+  requestObjectTtlSeconds?: number;
   /** Lebensdauer eines fertigen Ergebnisses in Sekunden. */
   resultTtlSeconds: number;
   /** Erlaubte Uhrabweichung in Sekunden (Zertifikate, signierte Listen). */
@@ -165,6 +187,14 @@ export function loadConfig(
   const host = env[ENV_ATTACK_HOST]?.trim() || '127.0.0.1';
 
   const publicBaseUrl = parsePublicBaseUrl(env[ENV_ATTACK_PUBLIC_BASE_URL], devMode);
+  const redirectUri = parseRedirectUri(env[ENV_ATTACK_REDIRECT_URI], devMode);
+  const requestObjectTtlSeconds = zahlAusUmgebung(
+    env,
+    ENV_ATTACK_REQUEST_OBJECT_TTL_SECONDS,
+    DEFAULT_REQUEST_OBJECT_TTL_SECONDS,
+    REQUEST_OBJECT_TTL_MIN_SECONDS,
+    REQUEST_OBJECT_TTL_MAX_SECONDS,
+  );
   if (isProduction && !publicBaseUrl) {
     throw new ConfigError(
       `${ENV_ATTACK_PUBLIC_BASE_URL} ist im Produktionsmodus Pflicht (öffentliche https-Adresse, unter der die Wallet den Dienst erreicht). ` +
@@ -204,10 +234,34 @@ export function loadConfig(
     port,
     host,
     ...(publicBaseUrl ? { publicBaseUrl } : {}),
+    ...(redirectUri ? { redirectUri } : {}),
+    requestObjectTtlSeconds,
     resultTtlSeconds,
     clockSkewSeconds,
     rateLimits,
   };
+}
+
+/**
+ * Prüft ATTACK_REDIRECT_URI (fail closed): https (http nur mit
+ * Entwicklungsschalter), keine Zugangsdaten, kein Fragment. Eine Query ist
+ * erlaubt; der Dienst ergänzt `session_id`.
+ */
+function parseRedirectUri(raw: string | undefined, devMode: boolean): string | undefined {
+  if (raw === undefined || raw.trim() === '') return undefined;
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new ConfigError(`${ENV_ATTACK_REDIRECT_URI} ist keine gültige URL. Start abgebrochen.`);
+  }
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && devMode)) {
+    throw new ConfigError(`${ENV_ATTACK_REDIRECT_URI} muss mit https:// beginnen (http nur mit ${ENV_ATTACK_DEV_MODE}=true). Start abgebrochen.`);
+  }
+  if (url.hash || url.username || url.password) {
+    throw new ConfigError(`${ENV_ATTACK_REDIRECT_URI} darf weder Fragment noch Zugangsdaten enthalten. Start abgebrochen.`);
+  }
+  return url.toString();
 }
 
 /**

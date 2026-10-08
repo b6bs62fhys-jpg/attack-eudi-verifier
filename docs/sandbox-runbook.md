@@ -47,7 +47,8 @@ Regeln aus den Nutzungsbedingungen, die für jeden Test gelten:
 | Vertrauensanker der PID Aussteller aus der Sandbox Vertrauensliste | [Q9], [Q10] | Datei nach Abschnitt 2.5 |
 | Sperrprüfung der Aussteller Kette; die CA Zertifikate der Vertrauensliste tragen nur CRL Adressen | [Q10] | **neu**: CRL eingebunden, im Produktionsmodus Pflicht |
 | mdoc (ISO 18013-5) | [Q11] | nicht unterstützt; für die Online PID per SD-JWT nach [Q5] nicht nötig |
-| Nach `direct_post` eine Antwort mit `redirect_uri` | [Q5] 1.3.3 (Entwurf) | **fehlt**, siehe Abschnitt 8 |
+| Altersprüfung 18+ ohne Geburtsdatum | [Q23] | Vorlage `age_over_18_de` (`age_equal_or_over.18`), Antwort nur ja oder nein |
+| Nach `direct_post` eine Antwort mit `redirect_uri` | [Q5] 1.3.3 (Entwurf) | **neu, optional und aus**: `ATTACK_REDIRECT_URI`, siehe Abschnitt 8 |
 
 ## 2. Material vorbereiten (Mac mini)
 
@@ -219,6 +220,7 @@ export ATTACK_VERIFIER_CERT_CHAIN_PEM=$HOME/attack-sandbox/verifier-chain.pem
 export ATTACK_ISSUER_TRUST_ANCHORS_PEM=$HOME/attack-sandbox/issuer-anchors.pem
 export ATTACK_REGISTRATION_CERTIFICATE_FILE=$HOME/attack-sandbox/registration-certificate.json
 export ATTACK_TENANTS_FILE=$HOME/attack-sandbox/tenants.json
+export ATTACK_TRUSTED_PROXIES=127.0.0.1   # optional, nur hinter dem Tunnel, siehe Abschnitt 6.4
 npm run service
 ```
 
@@ -273,7 +275,7 @@ brew install qrencode
 qrencode -o wallet-qr.png "$(node -p 'require("./request.json").walletUrl')" && open wallet-qr.png
 ```
 
-Mit der Kamera des iPhones scannen; der `openid4vp://` Link öffnet die Wallet. Das Request Object gilt 120 Sekunden ab Erzeugung (Abschnitt 8); dauert es länger, eine neue Prüfanfrage erzeugen. Der QR Code auf der Demo Flowseite (`npm run demo`) zeigt auf 127.0.0.1 und taugt nur für die lokale Demo.
+Mit der Kamera des iPhones scannen; der `openid4vp://` Link öffnet die Wallet. Das Request Object gilt standardmäßig 120 Sekunden ab Erzeugung (`ATTACK_REQUEST_OBJECT_TTL_SECONDS`, Abschnitt 8); dauert es länger, eine neue Prüfanfrage erzeugen. Der QR Code auf der Demo Flowseite (`npm run demo`) zeigt auf 127.0.0.1 und taugt nur für die lokale Demo.
 
 ### 4.4 In der Wallet bestätigen
 
@@ -294,14 +296,15 @@ Erfolg: `"status":"completed"` mit `"valid":true` und den drei Claims. Ein ferti
 | Start bricht ab: `ATTACK_PUBLIC_BASE_URL ist im Produktionsmodus Pflicht` | Variable fehlt | Abschnitt 3.3 |
 | Start bricht ab: `Private-Key unbrauchbar` | Schlüssel nicht PKCS#8 | Abschnitt 2.2, Umwandlung |
 | Start bricht ab: `ATTACK_REGISTRATION_CERTIFICATE_FILE: ...` | Datei fehlt, kein oder mehrere JWTs, abgelaufen | Datei aus dem Registrar neu laden |
-| Prüfanfrage endet mit 500, im Log `http_request_failed` mit `error_type` `JarBuildError` | Schlüssel passt nicht zum Zertifikat oder Zertifikat selbstsigniert | Abschnitt 2.3, Abgleich |
+| Prüfanfrage endet mit 500, im Log `http_request_failed` mit `error_type` `SignedRequestBuildError` oder `JarBuildError` | Zertifikat selbstsigniert (im Produktionsmodus nicht erlaubt) oder Schlüssel passt nicht zum Zertifikat. Am 08.10.2026 lokal im Docker Image mit selbstsigniertem Verifier Zertifikat nachgestellt: Start und `/live` laufen, die Prüfanfrage endet mit 500 und `SignedRequestBuildError` | Abschnitt 2.3, Abgleich; das Zugangszertifikat muss vom Registrar ausgestellt sein |
 | HTTP 401 | Schlüssel falsch, Mandant gesperrt, Dienst nach `tenant add` nicht neu gestartet | `npm run cli -- tenant list --file ...` |
 | Wallet: "Validation Error: Could not trust certificate chain" | Zugangszertifikat fehlt im `x5c` [Q7] | `verifier-chain.pem` enthält nur das `.crt`? |
 | Wallet zeigt keinen Zweck oder warnt vor "over-asking" | Registrierungszertifikat fehlt oder Claims weichen ab [Q7], [Q14] | Abschnitt 2.4 |
 | Wallet lädt die Anfrage nicht | Tunnel weg, Adresse alt, Request Object älter als 120 s | Abschnitt 3.4, neue Prüfanfrage |
 | Ergebnis `valid: false`, Code `issuer_*` | Aussteller nicht unter den Ankern | Abschnitt 2.5 |
 | Ergebnis `valid: false`, Code `revocation_*` | CRL der D-Trust oder Bundesdruckerei nicht erreichbar oder abgelaufen | `curl -sI` auf die CRL Adresse aus dem Zertifikat |
-| Ergebnis `valid: false`, Code `status_list_signature_invalid` | bekannte Lücke, Abschnitt 8 Punkt 1 | Code Änderung nötig |
+| Ergebnis `valid: false`, Code `status_list_signature_invalid` | die x5c Kette der Statusliste führt nicht zu einem Anker (Abschnitt 8 Punkt 1) | Anker prüfen, `x5c` der Statusliste ansehen |
+| Ergebnis `valid: false`, Code `status_list_signer_revoked` oder `status_list_signer_revocation_failed` | Unterzeichner gesperrt, oder seine CRL ist nicht erreichbar | CRL Adresse aus dem Zertifikat mit `curl -sI` prüfen |
 
 Wallet Logs: im Menü der Wallet **Download Logs** [Q8]. Bekannte Fehler der iOS Wallet: [Issue Tracker iOS](https://github.com/german-national-wallet/issues-tracker-ios/issues) [Q8].
 
@@ -357,8 +360,10 @@ services:
       ATTACK_ISSUER_TRUST_ANCHORS_PEM: /run/secrets/issuer-anchors.pem
       ATTACK_REGISTRATION_CERTIFICATE_FILE: /run/secrets/registration-certificate.json
       ATTACK_TENANTS_FILE: /run/secrets/tenants.json
+      ATTACK_TRUSTED_PROXIES: 172.28.0.0/24
     volumes:
       - /opt/attack/secrets:/run/secrets:ro
+    networks: [attack]
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -369,10 +374,18 @@ services:
       - /opt/attack/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    networks: [attack]
+networks:
+  attack:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
 volumes:
   caddy_data:
   caddy_config:
 ```
+
+Das feste Netz `172.28.0.0/24` und `ATTACK_TRUSTED_PROXIES` gehören zusammen: nur was aus diesem Netz kommt, also Caddy, darf dem Dienst die Adresse der Wallet nennen (Abschnitt 6.4). Das Netz muss zu keinem anderen Netz auf dem Server überlappen; sonst ein anderes freies `172.x` Netz nehmen und beide Stellen anpassen.
 
 Der Dienst veröffentlicht keinen eigenen Port; erreichbar ist er nur über Caddy.
 
@@ -384,7 +397,11 @@ curl -s https://verifier.<domain>/live
 ### 6.4 Hinweise für den Pilotbetrieb
 
 * `/ready` meldet im Produktionsmodus `onboarding: failed`, solange das Onboarding Gate nicht aktiv ist. Als Healthcheck deshalb `/live` verwenden, wie im Dockerfile.
-* Hinter Caddy (und hinter dem Tunnel) sieht der Dienst für alle öffentlichen Anfragen die Adresse des Proxys. Die öffentliche Ratenbegrenzung (Vorgabe 120 Anfragen je 60 Sekunden und IP) gilt dann für alle Wallets zusammen. Für einen Piloten mit vielen gleichzeitigen Nutzern `ATTACK_RATE_LIMIT_PUBLIC_PER_WINDOW` erhöhen.
+* **Proxy und Ratenbegrenzung.** Ohne weitere Angabe sieht der Dienst hinter Caddy (und hinter dem Tunnel) für alle öffentlichen Anfragen die Adresse des Proxys. Die öffentliche Ratenbegrenzung (Vorgabe 120 Anfragen je 60 Sekunden und IP) gilt dann für alle Wallets zusammen. Mit `ATTACK_TRUSTED_PROXIES` (Adressen oder Netze in CIDR-Schreibweise, durch Komma getrennt) wertet der Dienst `X-Forwarded-For` aus, aber nur, wenn die direkte Gegenstelle in dieser Liste steht. Von jeder anderen Gegenstelle wird der Header ignoriert, ein Client kann seine Adresse also nicht selbst wählen. Gelesen wird von rechts: der erste Eintrag, der kein vertrauenswürdiger Proxy ist, ist der Client. Ein unbrauchbarer Header oder ein Eintrag, der keine IP ist, führt dazu, dass die Gegenstelle zählt; ein Netz mit Präfixlänge 0 und jeder ungültige Eintrag brechen den Start ab.
+  * Caddy setzt `X-Forwarded-For` selbst und verwirft eingehende Werte, solange `trusted_proxies` in Caddy nicht gesetzt ist [Q21]. Steht ein weiterer Proxy oder ein CDN vor Caddy, dessen Adressen dann auch in `ATTACK_TRUSTED_PROXIES` eintragen und in Caddy `trusted_proxies` setzen.
+  * Der Dienst liest nur `X-Forwarded-For`, nicht `CF-Connecting-IP`. Cloudflare hängt an `X-Forwarded-For` an [Q22] und empfiehlt für die Besucheradresse selbst `CF-Connecting-IP`. Ob ein Cloudflare Tunnel den Header bis zum Dienst durchreicht, ist hier nicht geprüft.
+  * Die Adresse dient nur als Schlüssel der Begrenzung, im Arbeitsspeicher für die Dauer des Zeitfensters. Der Dienst schreibt sie nicht ins Log.
+  * Auch mit korrekter Konfiguration bleibt die Grenze je Wallet bei 120 Anfragen je 60 Sekunden. Für einen Piloten mit vielen gleichzeitigen Nutzern bei Bedarf `ATTACK_RATE_LIMIT_PUBLIC_PER_WINDOW` erhöhen.
 * Ergebnisse, Sitzungen und Audit Log liegen nur im Arbeitsspeicher; ein Neustart löscht sie.
 * Für den Produktivbetrieb des Ökosystems gelten andere Regeln als in der Sandbox: deutsche juristische Person [Q11], Legitimation beim Registrar über das ELSTER Zertifikat der Organisation [Q18]. Wer sich registriert, hängt an Abschnitt 7.
 
@@ -423,16 +440,26 @@ In den gefundenen offiziellen Unterlagen ist die Haftung zwischen Relying Party 
 2. Was bedeutet "with delegation" in "Verifier-as-a-Service", und wie wird die Delegation nachgewiesen?
 3. Gilt in der Produktion die Legitimation über ELSTER für die Relying Party, für den Intermediär oder für beide?
 
-## 8. Bekannte Lücken, die erst der echte Durchlauf zeigt
+## 8. Offene Punkte, die erst der echte Durchlauf zeigt
 
-1. **Statuslisten Unterzeichner.** Attack nimmt eine Statusliste nur an, wenn ihr Unterzeichner Zertifikat Byte für Byte einem der Aussteller Anker entspricht. Die Vertrauensliste enthält für Statuslisten eine CA ("Deutschland PID-Status-List-Signer Test CA 1-26-2 2026") [Q10], also vermutlich ein darunter ausgestelltes Blattzertifikat als Unterzeichner. Trägt die Test PID einen Status Eintrag, endet die Prüfung dann mit `status_list_signature_invalid`. Behebung: Kettenprüfung für Statuslisten Unterzeichner. Nicht gebaut.
-2. **`redirect_uri` nach `direct_post`.** Der Entwurf [Q5] 1.3.3 verlangt eine Antwort mit `redirect_uri`. Attack sendet keine. Für den ersten Test deshalb den Weg über den QR Code auf einem zweiten Gerät nehmen. Ob die Wallet ohne `redirect_uri` abschließt, ist offen.
-3. **Gültigkeit des Request Objects.** Attack setzt `exp` auf 120 Sekunden nach Erzeugung. Der Entwurf [Q5] 1.3 empfiehlt 5 bis 10 Minuten, die Referenzimplementierung nutzt eine Stunde [Q12].
-4. **Content-Type des Request Objects.** Attack liefert `application/oauth-authz-req+jwt` nach RFC 9101. Das Beispiel im Entwurf [Q5] 1.1 zeigt `application/json` und nennt sich selbst "illustrative".
-5. **Format im Credential Request.** Siehe Abschnitt 2.4: `vc+sd-jwt` im Beispiel des Registrars, `dc+sd-jwt` in der Anfrage.
-6. **Aufbau von `registration-certificate.json`.** Öffentlich nicht beschrieben; der Lader ist darauf ausgelegt, siehe Abschnitt 2.4.
-7. **mdoc.** Nicht unterstützt.
-8. **Aussteller Kette der echten PID.** Gegen eine echte PID ist Attack noch nie gelaufen. Welche CA die Sandbox PID tatsächlich signiert und ob ihre Blattzertifikate eine Sperradresse tragen, zeigt erst der Durchlauf.
+Stand 08.10.2026. Was seit der ersten Fassung gebaut wurde, steht unter "Behoben", mit dem Hinweis, wie weit es geprüft ist.
+
+### Behoben, aber nicht gegen die Sandbox geprüft
+
+1. **Statuslisten Unterzeichner.** Der Unterzeichner einer Statusliste darf jetzt von einem Anker signiert sein (Kette über den `x5c` Header: Namen, Signaturen, Gültigkeit, Schlüsselverwendung, Pfadlänge; danach Sperrprüfung wie bei der Aussteller Kette). Geprüft mit selbst gebauten CAs, auch mit abgelaufener und fremder CA. Die echten Zertifikate der Vertrauensliste [Q10] passen zu den Annahmen: die Aussteller CAs sind `CA:TRUE, pathlen:0` mit `keyCertSign`. Ob der echte Unterzeichner seine Kette im `x5c` mitschickt und ob seine CRL erreichbar ist, zeigt erst der Durchlauf. Fehlt der Rest der Kette, endet die Prüfung mit `status_list_signature_invalid`.
+2. **`redirect_uri` nach `direct_post`.** Optional und aus: mit `ATTACK_REDIRECT_URI` antwortet der Dienst der Wallet mit `redirect_uri` und angehängter `session_id`, nur für den Ablauf auf einem Gerät. Die walt.id Wallet hat es übernommen (`docs/gegenstelle-waltid.md`). Ob die deutsche Sandbox Wallet es verlangt oder auswertet, ist offen. Für den ersten Test bleibt der QR Code auf einem zweiten Gerät der einfachere Weg, dann ohne die Variable.
+3. **Gültigkeit des Request Objects.** Einstellbar mit `ATTACK_REQUEST_OBJECT_TTL_SECONDS` (30 bis 600, Standard 120). Der Entwurf [Q5] 1.3 empfiehlt 5 bis 10 Minuten, die Referenzimplementierung nutzt eine Stunde [Q12]. Welcher Wert für die Sandbox Wallet taugt, ist nicht bekannt.
+4. **Verschlüsselungsschlüssel.** Das `jwks` im `client_metadata` trug `key_ops: []` und `ext: true` und wurde von der walt.id Wallet übergangen. Behoben, siehe `docs/gegenstelle-waltid.md`. Ob die Sandbox Wallet es genauso gesehen hätte, ist nicht bekannt.
+
+### Weiter offen
+
+5. **Content-Type des Request Objects.** Attack liefert `application/oauth-authz-req+jwt` nach RFC 9101. Das Beispiel im Entwurf [Q5] 1.1 zeigt `application/json` und nennt sich selbst "illustrative". Die walt.id Wallet kommt mit `application/oauth-authz-req+jwt` zurecht.
+6. **Format im Credential Request.** Siehe Abschnitt 2.4: `vc+sd-jwt` im Beispiel des Registrars, `dc+sd-jwt` in der Anfrage.
+7. **Aufbau von `registration-certificate.json`.** Öffentlich nicht beschrieben; der Lader ist darauf ausgelegt, siehe Abschnitt 2.4. Die walt.id Wallet nahm `verifier_info` mit einem selbst gebauten JWT an, zeigte die Angaben aber nicht an.
+8. **mdoc.** Nicht unterstützt.
+9. **Aussteller Kette der echten PID.** Gegen eine echte PID ist Attack noch nie gelaufen. Welche CA die Sandbox PID tatsächlich signiert und ob ihre Blattzertifikate eine Sperradresse tragen, zeigt erst der Durchlauf.
+10. **Altersschwelle der deutschen PID.** Die Vorlage `age_over_18_de` fragt `age_equal_or_over.18`, so wie die PID Referenz es beschreibt. Wie die echte PID die Schwellen im SD-JWT verpackt, ist nicht beschrieben. Mit einem Objekt, in dem jede Schwelle einzeln offenlegbar ist, lief es gegen die walt.id Wallet; ein Objekt, das als Ganzes eine Offenlegung ist, legte diese Wallet nicht offen.
+11. **TLS und Tunnel.** Der Durchlauf mit der walt.id Wallet lief über `http` im Docker Netz. TLS, ein Cloudflare Tunnel und die Erreichbarkeit vom iPhone sind nicht geprüft.
 
 ## 9. Quellen
 
@@ -460,3 +487,6 @@ Developer Guide: Quelltext im Repository <https://gitlab.opencode.de/bmi/eudi-wa
 | Q18 | Developer Guide, `docs/concepts/access-certificate.md` (Entwurf, Version 1.0 vom 08.07.2026) |
 | Q19 | Architekturkonzept, <https://gitlab.opencode.de/bmi/eudi-wallet/eidas-2.0-architekturkonzept>, Version 2.13.0 vom 15.09.2026, `architecture-proposal/content/ecosystem-concepts/trust/wallet-relying-party-authentication.md` |
 | Q20 | Architekturkonzept, ebenda, `architecture-proposal/content/ecosystem-concepts/trust/overasking-protection.md` |
+| Q21 | Caddy, reverse_proxy: <https://caddyserver.com/docs/caddyfile/directives/reverse_proxy>, abgerufen 08.10.2026 |
+| Q22 | Cloudflare, HTTP request headers: <https://developers.cloudflare.com/fundamentals/reference/http-headers/>, abgerufen 08.10.2026 |
+| Q23 | Developer Guide, `docs/resources/pid_reference.md` (Abschnitt "Age Verification Thresholds": Schwellen 12, 14, 16, 18, 21, 65, in SD-JWT gruppiert unter `age_equal_or_over`) |

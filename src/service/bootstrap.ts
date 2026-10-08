@@ -21,7 +21,7 @@
  * wird unabhängig davon fail closed geprüft. Sobald das Material vorliegt, ist
  * die Verdrahtung ein reiner Konfigurationsakt.
  */
-import {announceDevMode, announceSelfSignedCertificate, ConfigError, loadConfig, type AppConfig, type WarnFn} from '../config.ts';
+import {ENV_ATTACK_REDIRECT_URI, announceDevMode, announceSelfSignedCertificate, ConfigError, loadConfig, type AppConfig, type WarnFn} from '../config.ts';
 import {generateTestKeyMaterial} from '../decision-test/mock-wallet.ts';
 import {AuditLog} from './audit.ts';
 import {NO_CREDENTIAL_STATUS, TokenStatusListChecker, type CredentialStatusChecker} from './credential-status.ts';
@@ -43,6 +43,7 @@ import {describeOnboardingState, resolveOnboardingGate, type OnboardingMaterial}
 import {resolveIssuerAnchors} from './issuer-anchors.ts';
 import {VerifierService} from './service.ts';
 import {TenantStore} from './tenant.ts';
+import {ENV_ATTACK_TRUSTED_PROXIES, parseTrustedProxies, type TrustedProxies} from '../lib/client-ip.ts';
 import {applyTenantFile, ENV_ATTACK_TENANTS_FILE, loadTenantFile} from './tenant-file.ts';
 import {ENV_ATTACK_REGISTRATION_CERTIFICATE_FILE, loadRegistrationCertificate, type VerifierInfoEntry} from './registration-certificate.ts';
 import {resolveVerifierIdentity} from './verifier-identity.ts';
@@ -65,6 +66,8 @@ export interface Bootstrapped {
   credentialStatus: CredentialStatusChecker;
   /** Angelegte Test-Mandanten (leer ohne Entwicklungsschalter). */
   testTenants: ReadonlyArray<{ id: string; apiKey: string }>;
+  /** Vertrauenswürdige Reverse Proxys (ATTACK_TRUSTED_PROXIES), falls konfiguriert. */
+  trustedProxies?: TrustedProxies;
   /** Mandanten aus ATTACK_TENANTS_FILE (undefined, wenn keine Datei konfiguriert ist). */
   tenantFile?: { active: number; revoked: number };
   /** Sperrprüfung der Aussteller-Zertifikatskette. */
@@ -114,13 +117,6 @@ export async function bootstrapService(
   );
   if (usedTestAnchor) warn('!!! Aussteller-Vertrauensanker: TEST-MATERIAL wird verwendet (ATTACK_DEV_MODE aktiv). !!!');
 
-  // Credential-Statusprüfung (fail closed): ohne Entwicklungsschalter echte
-  // Token-Status-List-Prüfung; NO_CREDENTIAL_STATUS nur mit ATTACK_DEV_MODE.
-  const credentialStatus: CredentialStatusChecker = config.devMode
-    ? NO_CREDENTIAL_STATUS
-    : new TokenStatusListChecker({ trustedSigners: () => issuerAnchors, clockSkewSeconds: config.clockSkewSeconds });
-  if (credentialStatus === NO_CREDENTIAL_STATUS) warn('!!! Credential-Statusprüfung ist ABGESCHALTET (ATTACK_DEV_MODE aktiv). !!!');
-
   // Sperrprüfung der Aussteller-Zertifikatskette über OCSP (fail closed, mit
   // der freigegebenen Gnadenfrist aus [interne Notiz, nicht veröffentlicht]:
   // Option B, 24 Stunden). NO_REVOCATION nur mit Entwicklungsschalter.
@@ -156,6 +152,19 @@ export async function bootstrapService(
       });
   if (issuerRevocation === NO_REVOCATION) warn('!!! Aussteller-Sperrprüfung ist ABGESCHALTET (ATTACK_DEV_MODE aktiv). !!!');
   else warn(`Sperrquellen Aussteller-Kette: ${describeRevocationSources(issuerRevocationSources)} (${ENV_ATTACK_ISSUER_REVOCATION_SOURCES}).`);
+
+  // Credential-Statusprüfung (fail closed): ohne Entwicklungsschalter echte
+  // Token-Status-List-Prüfung; NO_CREDENTIAL_STATUS nur mit ATTACK_DEV_MODE.
+  // Der Unterzeichner einer Statusliste muss selbst ein Aussteller-Anker oder
+  // von einem Anker signiert sein (Kette, Gültigkeit, Schlüsselverwendung); im
+  // zweiten Fall wird seine Kette mit denselben Sperrquellen geprüft wie die
+  // Aussteller-Kette eines Credentials. Die Sandbox-Vertrauensliste führt für
+  // Statuslisten eine CA, nicht das Unterzeichner-Zertifikat selbst.
+  const credentialStatus: CredentialStatusChecker = config.devMode
+    ? NO_CREDENTIAL_STATUS
+    : new TokenStatusListChecker({ trustedSigners: () => issuerAnchors, clockSkewSeconds: config.clockSkewSeconds, revocation: issuerRevocation });
+  if (credentialStatus === NO_CREDENTIAL_STATUS) warn('!!! Credential-Statusprüfung ist ABGESCHALTET (ATTACK_DEV_MODE aktiv). !!!');
+
 
   // Eigene Sperrprüfung für das Onboarding-Gate. Bewusst eine eigene Instanz:
   // OCSP hier strikt, ohne die 24-Stunden-Gnadenfrist des Credential-Pfads. Die
@@ -245,6 +254,11 @@ export async function bootstrapService(
     );
   }
 
+  // Vertrauenswürdige Proxys für die Ratenbegrenzung (fail closed bei
+  // ungültigem Eintrag). Ohne Angabe zählt immer die direkte Gegenstelle.
+  const trustedProxies = parseTrustedProxies(env[ENV_ATTACK_TRUSTED_PROXIES]);
+  if (trustedProxies) warn(`Vertrauenswürdige Proxys: ${trustedProxies.entries.join(', ')}. X-Forwarded-For wird nur von dort ausgewertet (${ENV_ATTACK_TRUSTED_PROXIES}).`);
+
   const audit = new AuditLog();
   const service = new VerifierService(
     tenants,
@@ -264,8 +278,11 @@ export async function bootstrapService(
       resultTtlMs: config.resultTtlSeconds * 1000,
       clockSkewSeconds: config.clockSkewSeconds,
       verifierInfo,
+      ...(config.redirectUri ? { redirectUri: config.redirectUri } : {}),
+      requestObjectTtlSeconds: config.requestObjectTtlSeconds,
     },
   );
+  if (config.redirectUri) warn(`redirect_uri ist aktiv (${ENV_ATTACK_REDIRECT_URI}): nur für den Ablauf auf einem Gerät, nicht für QR-Codes auf einem zweiten Gerät.`);
   // Öffentliche Basis-URL: daraus leitet der Dienst Request URI und Response
   // URI ab. Ohne sie setzt run.ts nach dem Start die lokale Adresse (nur
   // außerhalb von Produktion, siehe loadConfig).
@@ -288,6 +305,7 @@ export async function bootstrapService(
     onboardingState,
     testTenants,
     ...(tenantFile ? { tenantFile } : {}),
+    ...(trustedProxies ? { trustedProxies } : {}),
     metrics,
   };
 }

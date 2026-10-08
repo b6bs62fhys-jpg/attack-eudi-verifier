@@ -45,10 +45,12 @@ Antwort von `POST /direct_post` (`valid: false`).
 | `status_list_unreachable` | Statusliste nicht erreichbar oder HTTP-Status ≠ 2xx. |
 | `status_list_timeout` | Statusliste antwortet nicht innerhalb der Zeitgrenze (Standard 5 s). |
 | `status_list_too_large` | Statusliste überschreitet die Größengrenze (Standard 1 MiB, entpackt 16 MiB). |
-| `status_list_signature_invalid` | Unterzeichner nicht vertraut, Algorithmus nicht erlaubt oder Signatur ungültig. |
+| `status_list_signature_invalid` | Unterzeichner weder selbst Anker noch über die x5c-Kette von einem Anker signiert, Schlüsselverwendung unzulässig (Aussteller ohne cA, ohne keyCertSign, pathLenConstraint verletzt, Blatt ohne digitalSignature), Algorithmus nicht erlaubt oder Signatur ungültig. |
+| `status_list_signer_revoked` | Das Unterzeichner-Zertifikat oder ein Zwischenzertifikat seiner Kette ist gesperrt oder ausgesetzt. Geprüft nur, wenn der Unterzeichner nicht selbst Anker ist. |
+| `status_list_signer_revocation_failed` | Sperrprüfung des Unterzeichners nicht möglich (Quelle nicht erreichbar, ungültige Antwort) oder keine Sperrquelle konfiguriert; fail closed. |
 | `status_list_malformed` | Kein `statuslist+jwt`, `sub` ≠ URI, `iat`/`exp` fehlen, `bits`/`lst` ungültig. |
 | `status_list_expired` | `exp` überschritten oder `iat` liegt in der Zukunft. |
-| `certificate_expired` / `certificate_not_yet_valid` | Das Signaturzertifikat der Statusliste ist abgelaufen bzw. noch nicht gültig (Haertung 9). |
+| `certificate_expired` / `certificate_not_yet_valid` | Ein Zertifikat der Unterzeichner-Kette der Statusliste (Unterzeichner, Zwischen-CA oder Anker) ist abgelaufen bzw. noch nicht gültig (Haertung 9). |
 
 ## HTTP-Schicht (alle Endpunkte)
 
@@ -176,13 +178,15 @@ Zuordnung seitdem als Invariante.
 | `certificate_not_yet_valid` | Wie oben, aber noch nicht gültig (Haertung 9). |
 | `credential_signature_invalid` | Signatur des Credentials ungültig. |
 | `credential_expired` | Credential abgelaufen. |
-| `credential_malformed` | Credential nicht lesbar oder Aussteller nicht vertraut (Bibliothek). |
+| `credential_malformed` | Credential nicht lesbar oder Aussteller nicht vertraut (Bibliothek). Dazu seit dem 08.10.2026 die Strukturprüfung nach RFC 9901 (`src/service/sdjwt-checks.ts`): dieselbe Offenlegung zweimal, derselbe Digest mehrfach, Offenlegung mit falscher Form oder einem Salt, das kein Text ist. |
 | `credential_format_unsupported` | Format nicht unterstützt. |
 | `nonce_invalid` | Nonce/Key-Binding passt nicht. |
 | `query_invalid` | DCQL-Anfrage ungültig. |
 | `issuer_trust_anchor_not_found`, `issuer_chain_invalid` | Trust-/Kettenfehler der Bibliothek (nur mit `trustStore`). `issuer_certificate_revoked` und `issuer_revocation_check_failed` entstehen auch aus der eigenen Sperrprüfung, siehe oben. |
 | `multi_credential_unsupported` | Mehrere Credentials in einer Antwort. |
-| `presentation_invalid` | Jede andere Ablehnung durch die Prüfbibliothek (Freitext wird nie ausgegeben). |
+| `presentation_invalid` | Jede andere Ablehnung durch die Prüfbibliothek (Freitext wird nie ausgegeben). Dazu seit dem 08.10.2026 ein Key-Binding-JWT mit `typ` ungleich `kb+jwt` oder mit einem `iat` außerhalb des Fensters (älter als die Sitzungsdauer des Mandanten plus Uhrabweichung, oder weiter in der Zukunft als die Uhrabweichung). Dieses Fenster wird erst nach den Prüfungen der Zertifikate und des Status ausgewertet. |
+| `age_requirement_not_met` | Altersprüfung (Profile `age_over_18`, `age_over_18_de`): echtes, gültiges Credential, der Altersclaim ist `false`. Ein klares Nein. Anders als alle anderen Ablehnungen bekommt der Mandant ein abgeschlossenes Ergebnis (`valid: false`, `claims: {}`) statt `pending`. |
+| `age_claim_invalid` | Altersprüfung: der Altersclaim fehlt oder hat einen anderen Typ als Boolean (und die Bibliothek hat es nicht schon vorher als `presentation_invalid` abgelehnt). Kein Ergebnis für den Mandanten, nie ein Ja. |
 
 ## Audit-Ereignisse (nur Audit-Log, nie HTTP-Antwort)
 

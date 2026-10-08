@@ -16,6 +16,7 @@ import http from 'node:http';
 
 import { VerifierService } from './service.ts';
 import { hashApiKey, TenantStore, type TenantConfig } from './tenant.ts';
+import { resolveClientAddress, type TrustedProxies } from '../lib/client-ip.ts';
 import { ErrTenantNotRegistered, ErrTenantRegistrationInvalid, OnboardingError } from '../onboarding/errors.ts';
 import { MAX_BODY_BYTES, ServiceInputError } from './limits.ts';
 import type { RegistrationRef } from '../onboarding/registration-ref.ts';
@@ -31,6 +32,12 @@ export interface AppDeps {
   readiness?: () => ReadinessSnapshot;
   rateLimiter?: RateLimiter;
   rateLimits?: { publicPerWindow?: number; tenantPerWindow?: number };
+  /**
+   * Vertrauenswürdige Proxys (ATTACK_TRUSTED_PROXIES). Nur wenn die direkte
+   * Gegenstelle hier steht, wird `X-Forwarded-For` für die Ratenbegrenzung der
+   * öffentlichen Routen ausgewertet. Ohne Angabe zählt immer die Gegenstelle.
+   */
+  trustedProxies?: TrustedProxies;
 }
 
 function bearerToken(req: http.IncomingMessage): string | null {
@@ -155,8 +162,10 @@ export interface RouteDef {
 /** Einheitliche 404-Antwort: fremder Mandant, gelöscht, verbraucht und unbekannt sind nicht unterscheidbar. */
 const NOT_FOUND = { error: 'not_found' };
 
-function clientIdentity(req: http.IncomingMessage, apiKey: string | null): string {
-  return apiKey ? `api:${hashApiKey(apiKey)}` : `ip:${req.socket.remoteAddress ?? 'unknown'}`;
+function clientIdentity(req: http.IncomingMessage, apiKey: string | null, trusted?: TrustedProxies): string {
+  if (apiKey) return `api:${hashApiKey(apiKey)}`;
+  const forwarded = req.headers['x-forwarded-for'];
+  return `ip:${resolveClientAddress(req.socket.remoteAddress, Array.isArray(forwarded) ? forwarded.join(',') : forwarded, trusted)}`;
 }
 
 function rateLimitResponse(res: http.ServerResponse, result: { limit: number; remaining: number; retryAfterSeconds: number }): void {
@@ -413,7 +422,7 @@ export function createApp(deps: AppDeps): http.Server {
         if (route?.access === 'public') {
           if (shouldRateLimit(route)) {
             const limit = runtimeDeps.rateLimits?.publicPerWindow ?? DEFAULT_PUBLIC_RATE_LIMIT;
-            const result = runtimeDeps.rateLimiter?.consume(`${route.path}|${clientIdentity(req, publicApiKey)}|public`, limit);
+            const result = runtimeDeps.rateLimiter?.consume(`${route.path}|${clientIdentity(req, publicApiKey, runtimeDeps.trustedProxies)}|public`, limit);
             if (result && !result.allowed) return rateLimitResponse(res, result);
           }
           return await route.handle({ req, res, deps: runtimeDeps, params });
@@ -428,7 +437,7 @@ export function createApp(deps: AppDeps): http.Server {
         if (!route) return sendJson(res, 404, NOT_FOUND);
         if (shouldRateLimit(route)) {
           const limit = runtimeDeps.rateLimits?.tenantPerWindow ?? DEFAULT_TENANT_RATE_LIMIT;
-          const result = runtimeDeps.rateLimiter?.consume(`${route.path}|${clientIdentity(req, apiKey)}|tenant`, limit);
+          const result = runtimeDeps.rateLimiter?.consume(`${route.path}|${clientIdentity(req, apiKey, runtimeDeps.trustedProxies)}|tenant`, limit);
           if (result && !result.allowed) return rateLimitResponse(res, result);
         }
         return await route.handle({ req, res, deps: runtimeDeps, params, tenant });

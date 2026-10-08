@@ -19,6 +19,10 @@ COPY package.json package-lock.json ./
 RUN npm ci
 COPY tsconfig.json vitest.config.ts ./
 COPY src ./src
+# src/adr-belege.test.ts importiert tools/belege-pruefen.mjs (mit Typdatei); ohne
+# beide scheitert der strenge Typecheck dieser Stufe. Nur diese zwei Dateien,
+# nicht tools/, damit nichts Unbeteiligtes in den Typecheck gerät.
+COPY tools/belege-pruefen.mjs tools/belege-pruefen.d.mts ./tools/
 RUN npm run typecheck
 
 FROM node:22-bookworm-slim@sha256:43ac6c60b8f89723f746e8a92ce91abd5017e627ce1ddfe4238355d3a30b772c AS production
@@ -67,11 +71,14 @@ COPY --from=build /app/src/service/metrics.ts ./src/service/metrics.ts
 COPY --from=build /app/src/service/profile.ts ./src/service/profile.ts
 COPY --from=build /app/src/service/rate-limit.ts ./src/service/rate-limit.ts
 COPY --from=build /app/src/service/service.ts ./src/service/service.ts
+COPY --from=build /app/src/service/sdjwt-checks.ts ./src/service/sdjwt-checks.ts
 COPY --from=build /app/src/service/tenant.ts ./src/service/tenant.ts
 COPY --from=build /app/src/service/tenant-file.ts ./src/service/tenant-file.ts
 COPY --from=build /app/src/service/registration-certificate.ts ./src/service/registration-certificate.ts
 COPY --from=build /app/src/service/verifier-identity.ts ./src/service/verifier-identity.ts
 COPY --from=build /app/src/decision-test/mock-wallet.ts ./src/decision-test/mock-wallet.ts
+COPY --from=build /app/src/lib/cert-chain.ts ./src/lib/cert-chain.ts
+COPY --from=build /app/src/lib/client-ip.ts ./src/lib/client-ip.ts
 COPY --from=build /app/src/lib/cert-validity.ts ./src/lib/cert-validity.ts
 COPY --from=build /app/src/lib/library-log-filter.ts ./src/lib/library-log-filter.ts
 COPY --from=build /app/src/lib/limited-fetch.ts ./src/lib/limited-fetch.ts
