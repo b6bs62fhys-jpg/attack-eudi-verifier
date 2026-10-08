@@ -55,11 +55,12 @@ export async function enforceIssuerChainRevocation(
   }
 
   // Ist das letzte dargestellte Zertifikat selbst ein Anker, ist die Kette
-  // vollständig (selbstsigniertes Aussteller-Zertifikat als Anker).
+  // vollständig und der Anker bleibt als letztes Element stehen. Er wird nie
+  // geprüft, aber das Zertifikat davor muss gegen ihn geprüft werden. Früher
+  // wurde der Anker hier entfernt; dann blieb das Blatt als "Anker" übrig und
+  // wurde nie gefragt, ein gesperrtes Blatt mit angehängtem Anker im x5c ging durch.
   const presented = chain[chain.length - 1] as X509Certificate;
-  if (anchorIndex(presented, anchors) >= 0) {
-    chain.pop();
-  } else {
+  if (anchorIndex(presented, anchors) < 0) {
     // Sonst wird der Anker aus den konfigurierten Ankern ergänzt, der das
     // oberste Zertifikat ausgestellt hat. Ohne diesen Aussteller ist die
     // CertID nicht bildbar -> fail closed.

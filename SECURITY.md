@@ -18,6 +18,12 @@ Helpful information:
 
 You will get an acknowledgement as soon as possible. Once a fix is available, the report can be credited in the commit or release notes if you wish.
 
+## Fixed vulnerabilities
+
+| Date | Issue | Fix |
+|---|---|---|
+| 2026-10-08 | A revoked issuer certificate was accepted when the trust anchor was appended to the `x5c` header of the presentation. The revocation check skipped the certificate in front of the anchor. | see [`CHANGELOG.md`](CHANGELOG.md), regression test `src/service/issuer-revocation-anker-im-x5c.test.ts` |
+
 ## Scope
 
 In scope: the verifier service in `src/`, the SDKs in `sdk/` and the CI configuration.
