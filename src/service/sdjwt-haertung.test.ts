@@ -335,14 +335,18 @@ describe('Offenlegungen', () => {
 
   it('riesige und tief verschachtelte Werte: kein Absturz, keine Annahme', async () => {
     const u = await umgebung();
-    let tief: unknown = 'x';
-    for (let i = 0; i < 5000; i += 1) tief = [tief];
-    for (const wert of ['A'.repeat(20_000), tief, { a: 'b'.repeat(10_000) }, 'ü'.repeat(5_000)]) {
+    // Der JSON-Text wird von Hand gebaut: JSON.stringify überschreitet bei 5000
+    // Ebenen auf manchen Läufern das Stack-Limit (in der CI vorgekommen), der Test
+    // soll aber den Dienst prüfen, nicht den Encoder.
+    const tief = `${'['.repeat(5000)}"x"${']'.repeat(5000)}`;
+    const werte = [JSON.stringify('A'.repeat(20_000)), tief, JSON.stringify({ a: 'b'.repeat(10_000) }), JSON.stringify('ü'.repeat(5_000))];
+    for (const wertText of werte) {
       const s = await neueSitzung(u);
-      const d = b64u(JSON.stringify(['salz-1', 'given_name', wert]));
+      const d = b64u(`["salz-1","given_name",${wertText}]`);
       const r = await vorlegen(u, s, await selbstGebaut(u, s, { offenlegungen: [d], sdDigests: [sha256b64u(d)] }));
-      // Zu große Eingaben müssen abgelehnt werden. Kleinere dürfen angenommen werden, dann aber nur mit genau diesem Claim.
+      // Zu große oder zu tiefe Eingaben müssen abgelehnt werden. Kleinere dürfen angenommen werden, dann aber nur mit genau diesem Claim.
       if (r.outcome.valid) assert.deepEqual(Object.keys((r.ergebnis as { result: { claims: object } }).result.claims), ['given_name']);
+      if (wertText === tief) abgelehnt(r, 'Verschachtelung über 5000 Ebenen');
     }
   });
 
