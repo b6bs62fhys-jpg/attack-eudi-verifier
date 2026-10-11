@@ -14,9 +14,10 @@ Please report vulnerabilities privately, see [SECURITY.md](../SECURITY.md).
   of this code base, no penetration test and no certification. When the
   protocol library `@openeudi/openid4vp` was selected, no external audit of it
   was available either.
-- **Test status.** The service has been tested end to end only against the
-  mock wallet in this repository. It has not yet been tested with a real
-  wallet, a sandbox (including the SPRIND sandbox) or a national wallet.
+- **Test status.** The service has been tested end to end against the
+  mock wallet in this repository and in one local development mode run against
+  the open source walt.id wallet (2026-10-08). It has not yet been tested with
+  a real wallet, a sandbox (including the SPRIND sandbox) or a national wallet.
   Details: [interoperability matrix](interop-matrix.md) (German).
 - **Dependencies.** `npm audit` reports 0 vulnerabilities for the committed
   `package-lock.json`. CI runs `npm audit --audit-level=high` on every push and
