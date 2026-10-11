@@ -13,8 +13,11 @@ Die lokale Entwicklung verwendet ausschließlich synthetische TEST-Schlüssel,
 TEST-Zertifikate, TEST-Walletdaten und TEST-API-Schlüssel:
 
 ```bash
-ATTACK_DEV_MODE=true npm run service
+ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true npm run service
 ```
+
+Beide Schalter sind nötig: Das TEST-Verifier-Zertifikat ist selbstsigniert, und mit
+`ATTACK_DEV_MODE=true` allein scheitert jede Anfrage mit `internal_error`.
 
 Der Dienst lauscht standardmäßig auf `http://127.0.0.1:8080`. Das ist keine
 echte Wallet, keine öffentliche Sandbox und kein Behörden-Endpunkt.
