@@ -9,7 +9,7 @@ page.
 From the repository root, start the local TEST verifier first:
 
 ```bash
-ATTACK_DEV_MODE=true npm run service
+ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true npm run service
 ```
 
 In another terminal:
