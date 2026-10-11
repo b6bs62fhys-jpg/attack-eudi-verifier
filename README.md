@@ -83,8 +83,8 @@ Want help with a pilot? Two weeks, one use case (for example age check or identi
 
 ## What it does not do yet
 
-* No **test with a real wallet**, a sandbox or a national wallet; only the mock wallet in this repository
-* No **tenant management** outside dev mode: tenants and API keys are only created in dev mode, so production mode has no usable tenant yet
+* No **test with a real wallet**, a sandbox or a national wallet; only the mock wallet in this repository and one local run against the open source walt.id wallet (2026-10-08, dev mode)
+* No **tenant management interface**: in production mode tenants come only from a tenant file written by the CLI (`npm run cli -- tenant add`), there is no admin API and no self service
 * No **mdoc** (ISO/IEC 18013-5); only `dc+sd-jwt`
 * No **LOTL** / trusted list processing; only explicitly configured trust anchors
 * No **DCQL credential sets**
