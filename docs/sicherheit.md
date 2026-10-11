@@ -15,10 +15,11 @@ Schwachstellen bitte vertraulich melden, siehe [SECURITY.md](../SECURITY.md).
   Sicherheitsprüfung dieser Codebasis, keinen Penetrationstest und keine
   Zertifizierung. Zum Zeitpunkt der Bibliotheksauswahl lag auch kein externes
   Audit der Protokollbibliothek `@openeudi/openid4vp` vor.
-- **Teststand.** Der Dienst wurde Ende zu Ende ausschließlich gegen die
-  Mock-Wallet dieses Repositorys getestet. Mit einer echten Wallet, einer
-  Sandbox (auch nicht der SPRIND-Sandbox) oder einer nationalen Wallet wurde er
-  noch nicht getestet. Einzelheiten: [Interoperabilitätsmatrix](interop-matrix.md).
+- **Teststand.** Der Dienst wurde Ende zu Ende gegen die
+  Mock-Wallet dieses Repositorys und am 08.10.2026 in einem lokalen Lauf im
+  Entwicklungsbetrieb gegen die quelloffene walt.id Wallet getestet. Mit einer
+  echten Wallet, einer Sandbox (auch nicht der SPRIND-Sandbox) oder einer
+  nationalen Wallet wurde er noch nicht getestet. Einzelheiten: [Interoperabilitätsmatrix](interop-matrix.md).
 - **Abhängigkeiten.** `npm audit` meldet für das committete `package-lock.json`
   0 Schwachstellen. Die CI führt `npm audit --audit-level=high` bei jedem Push
   und jedem Pull Request aus.
@@ -177,8 +178,10 @@ Version 0.11.1 kommen sie nicht vor.
 5. **Keine Schlüsselverwaltung.** Der Verifier-Schlüssel wird aus einer
    PEM-Datei geladen. Es gibt keine Anbindung an KMS oder HSM und keine
    Schlüsselrotation.
-6. **Keine Interoperabilität nachgewiesen.** Getestet wurde nur gegen die
-   Mock-Wallet dieses Repositorys ([Interoperabilitätsmatrix](interop-matrix.md)).
+6. **Begrenzter Interoperabilitätsnachweis.** Getestet wurde gegen die
+   Mock-Wallet dieses Repositorys und am 08.10.2026 in einem lokalen Lauf im
+   Entwicklungsbetrieb gegen die quelloffene walt.id Wallet, nicht gegen eine
+   echte Wallet oder eine Sandbox ([Interoperabilitätsmatrix](interop-matrix.md)).
 7. **Verifier-Identität im Entwicklungsbetrieb.** Request Objects werden dort
    mit einem selbstsignierten TEST-Zertifikat signiert. Eine profilkonforme
    Wallet (HAIP) würde diese Identität ohne gültige Zugriffs- und
