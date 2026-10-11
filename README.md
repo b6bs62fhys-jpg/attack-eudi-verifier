@@ -35,10 +35,10 @@ npm run demo
 
 Open `http://127.0.0.1:3001` and run the full flow: the verifier creates a request, a mock wallet presents a test PID, and the result is shown. The demo binds to 127.0.0.1 only.
 
-Run the verifier service with two TEST tenants (`test-api-key-tenant-A`, `test-api-key-tenant-B`):
+Run the verifier service with TEST tenants (`test-api-key-tenant-A`, `test-api-key-tenant-B`). Development mode needs both switches, because the TEST verifier certificate is self signed; with `ATTACK_DEV_MODE=true` alone every request fails with `internal_error`:
 
 ```bash
-ATTACK_DEV_MODE=true npm run service
+ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true npm run service
 ```
 
 Then create a verification request from a second terminal:
@@ -69,7 +69,7 @@ Full specification: [`openapi.yaml`](openapi.yaml). Error codes: [`docs/fehlerco
 
 How a relying party connects the service in its own test environment. The steps follow the [integration guide](docs/integration-guide.md) and the [integration quickstart](docs/quickstart-integration.md); nothing here goes beyond what those documents describe.
 
-1. **Run the service in your test environment.** Locally with `ATTACK_DEV_MODE=true npm run service`, or as a container with the [`Dockerfile`](Dockerfile) as described in [`docs/deployment.md`](docs/deployment.md). Dev mode uses TEST tenants, TEST keys and TEST certificates only.
+1. **Run the service in your test environment.** Locally with `ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true npm run service`, or as a container with the [`Dockerfile`](Dockerfile) as described in [`docs/deployment.md`](docs/deployment.md). Dev mode uses TEST tenants, TEST keys and TEST certificates only.
 2. **Keep the API key on your server.** It is a server side secret per tenant and is sent as `authorization: Bearer <key>`. Never put it into browser or app code.
 3. **Create a verification request** with `POST /v1/verification-requests`. The `claims` must be part of the tenant profile, for example `given_name` and `birth_date` (profile `pid_basis`) or `age_over_18` (profile `age_over_18`). The response contains `sessionId`, `state` and `requestObjectUri`.
 4. **Hand the request to the wallet.** Pass `requestObjectUri` to your wallet integration. The wallet posts its answer to the public `/direct_post` endpoint of the service, not to your backend.
