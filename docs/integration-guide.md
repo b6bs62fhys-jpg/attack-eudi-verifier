@@ -12,8 +12,11 @@ Local development uses only synthetic TEST keys, certificates, wallet data and
 API keys:
 
 ```bash
-ATTACK_DEV_MODE=true npm run service
+ATTACK_DEV_MODE=true ATTACK_ALLOW_SELF_SIGNED=true npm run service
 ```
+
+Both switches are needed: the TEST verifier certificate is self signed, and with
+`ATTACK_DEV_MODE=true` alone every request fails with `internal_error`.
 
 The service listens on `http://127.0.0.1:8080` by default. This is not a real
 wallet, a public sandbox or an authority endpoint.
