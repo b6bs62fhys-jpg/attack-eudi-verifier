@@ -53,6 +53,7 @@ import {ServiceMetrics} from './metrics.ts';
 export const DEV_TEST_TENANTS = Object.freeze([
   { id: 'tenant-a', name: 'Kunde A (TEST)', apiKey: 'test-api-key-tenant-A' },
   { id: 'tenant-b', name: 'Kunde B (TEST)', apiKey: 'test-api-key-tenant-B' },
+  { id: 'tenant-age', name: 'Altersprüfung (TEST)', apiKey: 'test-api-key-tenant-age', requestProfile: 'age_over_18_de' },
 ]);
 
 export interface Bootstrapped {
