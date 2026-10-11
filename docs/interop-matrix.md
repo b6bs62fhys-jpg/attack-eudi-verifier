@@ -13,10 +13,12 @@ vor (siehe [eIDAS und ARF Zuordnung](eidas-arf-konformitaet.md), Zeile
 
 ## Teststand in einem Satz
 
-Der Dienst wurde Ende zu Ende ausschließlich gegen die Mock-Wallet dieses
-Repositorys getestet, mit TEST-Schlüsseln und TEST-Credentials, die im
-Arbeitsspeicher erzeugt werden. Mit einer echten Wallet, einer Sandbox oder
-einer nationalen Wallet wurde er noch nicht getestet.
+Der Dienst wurde Ende zu Ende gegen die Mock-Wallet dieses Repositorys und am
+08.10.2026 in einem lokalen Lauf im Entwicklungsbetrieb gegen die quelloffene
+walt.id Wallet getestet (siehe [gegenstelle-waltid.md](gegenstelle-waltid.md),
+kein Sandbox-Nachweis), jeweils mit TEST-Schlüsseln und TEST-Credentials. Mit
+einer echten Wallet, einer Sandbox oder einer nationalen Wallet wurde er noch
+nicht getestet.
 
 | Gegenstelle | Ende zu Ende mit diesem Dienst getestet? | Beleg |
 |---|---|---|
@@ -24,6 +26,7 @@ einer nationalen Wallet wurde er noch nicht getestet.
 | walt.id verifier-api2 | **Nein.** Als möglicher Baustein bewertet, siehe [Abschnitt 3](#3-bewertung-fremder-implementierungen). Dabei lief eine eigene Test-Wallet gegen walt.id, nicht gegen diesen Dienst. | `test/ERGEBNIS.md`, `test/waltid/evidence/waltid-run.txt` |
 | eudi-verify | **Nein.** Als möglicher Baustein bewertet. Das Kit baut auf `@openeudi/openid4vp` auf; dieselbe Bibliothek ist der Protokollkern dieses Dienstes. Daraus folgt kein Interop-Nachweis für diesen Dienst. | `test/ERGEBNIS.md` (das Lauf-Protokoll ist nicht im Repository) |
 | miEUDIverifier | **Nein.** Als möglicher Baustein bewertet und verworfen. | `test/ERGEBNIS.md`, `test/evidence/mieudi-verify.txt` |
+| walt.id wallet-api2 (Wallet, lokal, Entwicklungsbetrieb, 08.10.2026) | **Ja**, vier Durchläufe gegen diesen Dienst, kein Sandbox-Nachweis. | [`gegenstelle-waltid.md`](gegenstelle-waltid.md) |
 | Deutsche EUDI-Wallet, SPRIND-Sandbox oder eine andere Sandbox | **Nein.** Ein Sandbox-Zugang liegt nicht vor. | keiner |
 | Andere echte Wallet (Referenz-Wallet, nationale Wallet in Produktion) | **Nein.** | keiner |
 
