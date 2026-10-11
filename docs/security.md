@@ -172,8 +172,10 @@ version 0.11.1 contains none.
    ([deployment](deployment.md)).
 5. **No key management.** The verifier key is loaded from a PEM file. There is
    no KMS or HSM integration and no key rotation.
-6. **No interoperability evidence.** Tested only against the mock wallet in
-   this repository ([interoperability matrix](interop-matrix.md)).
+6. **Limited interoperability evidence.** Tested against the mock wallet in
+   this repository and in one local development mode run against the open
+   source walt.id wallet (2026-10-08), not against a real or sandbox wallet
+   ([interoperability matrix](interop-matrix.md)).
 7. **Verifier identity in dev mode.** Request objects are signed there with a
    self signed TEST certificate. A profile compliant wallet (HAIP) would reject
    this identity without valid access and registration certificates.
