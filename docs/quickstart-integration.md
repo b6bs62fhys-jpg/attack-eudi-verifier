@@ -243,7 +243,7 @@ Belege und Einzelheiten stehen in der [Interoperabilitätsmatrix](interop-matrix
 | **LOTL** | Es gibt keine Trust List nach ETSI TS 119 612. Geprüft wird nur, was als Anker konfiguriert ist. Deshalb endet Schritt 2 mit `issuer_trust_anchor_not_found`. |
 | **Credential Sets** | Nicht implementiert. |
 | **Registrar-Anbindung** | Der Client existiert im Code, ist aber nicht verdrahtet. |
-| **Test mit einer echten Wallet** | Der Dienst wurde Ende zu Ende nur gegen die Mock-Wallet dieses Repositorys getestet. Mit einer echten Wallet, einer Sandbox (auch nicht der SPRIND-Sandbox) oder einer nationalen Wallet wurde er nicht getestet. |
+| **Test mit einer echten Wallet** | Der Dienst wurde Ende zu Ende gegen die Mock-Wallet dieses Repositorys und am 08.10.2026 in einem lokalen Lauf im Entwicklungsbetrieb gegen die quelloffene walt.id Wallet getestet (siehe [gegenstelle-waltid.md](gegenstelle-waltid.md)). Mit einer echten Wallet, einer Sandbox (auch nicht der SPRIND-Sandbox) oder einer nationalen Wallet wurde er nicht getestet. |
 | **Zertifizierung** | Es liegt weder eine Zertifizierung noch ein Konformitätsnachweis vor ([eIDAS und ARF Zuordnung](eidas-arf-konformitaet.md)). |
 | **Externe Prüfung** | Weder Penetrationstest noch externes Security-Review ([Sicherheit](sicherheit.md)). |
 | **Referenzkunden** | Es gibt keine. |
