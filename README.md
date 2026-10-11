@@ -50,6 +50,15 @@ curl -s -X POST http://127.0.0.1:8080/v1/verification-requests \
   -d '{"claims":["given_name","birth_date"]}'
 ```
 
+For an age check, use the third TEST tenant (`test-api-key-tenant-age`, profile `age_over_18_de`). It can only ask for the 18 plus threshold of the German PID and gets back a yes or a clear no, never a date of birth:
+
+```bash
+curl -s -X POST http://127.0.0.1:8080/v1/verification-requests \
+  -H 'content-type: application/json' \
+  -H 'authorization: Bearer test-api-key-tenant-age' \
+  -d '{"claims":["age_equal_or_over.18"]}'
+```
+
 A complete walk through with a simulated wallet response and all error cases is in [`docs/quickstart-integration.md`](docs/quickstart-integration.md) (German). The `curl` examples in that file are executed by a test.
 
 ## API
